@@ -46,6 +46,17 @@ type ExecOptions struct {
 	// field rather than fail (so MUL-2339 can grow runtime support
 	// incrementally without breaking unrelated agents).
 	ThinkingLevel string
+	// SettingsPath optionally points the agent at a provider settings/config
+	// file on the daemon host (e.g. a specific Claude Code settings.json).
+	// Each backend translates it to the runtime-native channel: the claude
+	// backend appends `--settings <path>`, the opencode backend sets
+	// `OPENCODE_CONFIG=<path>`. Empty means "no override" — every backend
+	// that consumes this skips its injection so the CLI loads its own
+	// default settings. Backends that have no settings-file concept ignore
+	// the field, mirroring ThinkingLevel's renderer-side fall-through. The
+	// backend validates the path is readable at launch and fails closed
+	// with a clear error rather than silently running with defaults.
+	SettingsPath string
 	// OpenclawMode chooses between local (embedded) and gateway routing for
 	// the openclaw backend. "" or "local" keeps the historical behaviour —
 	// the daemon spawns `openclaw agent --local …` and the agent loop runs

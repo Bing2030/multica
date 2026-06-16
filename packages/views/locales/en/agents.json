@@ -216,6 +216,7 @@
     "environment": "Environment",
     "custom_args": "Custom Args",
     "mcp_config": "MCP",
+    "settings": "Settings",
     "integrations": "Integrations",
     "runtime_config": "Routing",
     "discard_dialog_title": "Discard unsaved changes?",
@@ -328,6 +329,16 @@
       "save_failed_toast": "Failed to save MCP config",
       "redacted_title": "Configured — hidden from your view",
       "redacted_hint": "Only the agent owner or a workspace admin can read this config."
+    },
+    "settings": {
+      "intro": "Path to a settings file on the daemon host, applied at launch. Use this to give the agent its own configuration instead of inheriting the CLI default. Only Claude and OpenCode runtimes support this field.",
+      "claude_hint": "Claude applies this as --settings <path> at launch.",
+      "opencode_hint": "OpenCode applies this via OPENCODE_CONFIG=<path> at launch.",
+      "launch_mode_prefix": "Launch mode: ",
+      "input_placeholder": "/home/user/.claude/settings-work.json",
+      "clear_action": "Clear",
+      "saved_toast": "Settings path saved",
+      "save_failed_toast": "Failed to save settings path"
     },
     "runtime_config": {
       "intro": "Choose how the OpenClaw runtime executes this agent's turns. Local mode runs the agent inside the daemon process. Gateway mode forwards each turn to an OpenClaw Gateway — useful when the daemon host is a lightweight coordinator and the agent should run on a more powerful machine.",

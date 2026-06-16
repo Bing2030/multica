@@ -203,6 +203,7 @@
     "environment": "環境",
     "custom_args": "カスタム引数",
     "mcp_config": "MCP",
+    "settings": "設定",
     "integrations": "連携",
     "runtime_config": "ルーティング",
     "discard_dialog_title": "保存していない変更を破棄しますか？",
@@ -313,6 +314,16 @@
       "save_failed_toast": "MCP config を保存できませんでした",
       "redacted_title": "設定済み — 現在の表示では非表示",
       "redacted_hint": "この config を読み取れるのは、エージェントのオーナーまたはワークスペースの admin のみです。"
+    },
+    "settings": {
+      "intro": "daemon ホスト上の設定ファイルへのパスです。起動時に適用されます。CLI のデフォルトを継承するのではなく、エージェント独自の設定を指定できます。現在、このフィールドをサポートしているのは Claude と OpenCode ランタイムのみです。",
+      "claude_hint": "Claude は起動時にこれを --settings <path> として適用します。",
+      "opencode_hint": "OpenCode は起動時に OPENCODE_CONFIG=<path> 環境変数で適用します。",
+      "launch_mode_prefix": "起動モード: ",
+      "input_placeholder": "/home/user/.claude/settings-work.json",
+      "clear_action": "クリア",
+      "saved_toast": "設定パスを保存しました",
+      "save_failed_toast": "設定パスを保存できませんでした"
     },
     "runtime_config": {
       "intro": "OpenClaw ランタイムがこのエージェントの各ターンをどのように実行するかを選択します。Local モードはエージェントを daemon プロセス内で実行します。Gateway モードは各ターンを OpenClaw Gateway に転送します — daemon のホストが軽量な調整役で、エージェントの実作業はより強力なマシンで動かしたい場合に有用です。",

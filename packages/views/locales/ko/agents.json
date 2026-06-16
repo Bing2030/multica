@@ -216,6 +216,7 @@
     "environment": "환경",
     "custom_args": "사용자 지정 인자",
     "mcp_config": "MCP",
+    "settings": "설정",
     "integrations": "연동",
     "runtime_config": "라우팅",
     "discard_dialog_title": "저장하지 않은 변경사항을 버릴까요?",
@@ -328,6 +329,16 @@
       "save_failed_toast": "MCP config를 저장하지 못했습니다",
       "redacted_title": "설정됨 - 현재 보기에서는 숨김",
       "redacted_hint": "에이전트 소유자 또는 워크스페이스 관리자만 이 config를 읽을 수 있습니다."
+    },
+    "settings": {
+      "intro": "daemon 호스트의 설정 파일 경로입니다. 시작 시 적용됩니다. CLI 기본값을 상속받지 않고 에이전트에 고유한 설정을 지정할 수 있습니다. 현재 Claude와 OpenCode 런타임만 이 필드를 지원합니다.",
+      "claude_hint": "Claude는 시작 시 이를 --settings <path>로 적용합니다.",
+      "opencode_hint": "OpenCode는 시작 시 OPENCODE_CONFIG=<path> 환경 변수로 적용합니다.",
+      "launch_mode_prefix": "시작 모드: ",
+      "input_placeholder": "/home/user/.claude/settings-work.json",
+      "clear_action": "지우기",
+      "saved_toast": "설정 경로를 저장했습니다",
+      "save_failed_toast": "설정 경로를 저장하지 못했습니다"
     },
     "runtime_config": {
       "intro": "OpenClaw 런타임이 이 에이전트의 각 턴을 어떻게 실행할지 선택하세요. Local 모드는 에이전트를 daemon 프로세스 내부에서 실행합니다. Gateway 모드는 각 턴을 OpenClaw Gateway로 전달합니다 — daemon 호스트가 가벼운 조율기 역할을 하고 실제 작업은 더 강력한 머신에서 돌리고 싶을 때 유용합니다.",

@@ -211,6 +211,7 @@
     "environment": "环境变量",
     "custom_args": "自定义参数",
     "mcp_config": "MCP",
+    "settings": "设置",
     "integrations": "集成",
     "runtime_config": "路由",
     "discard_dialog_title": "放弃未保存的修改？",
@@ -321,6 +322,16 @@
       "save_failed_toast": "保存 MCP 配置失败",
       "redacted_title": "已配置 —— 当前账号无权查看",
       "redacted_hint": "只有智能体所有者或工作区管理员可以读取该配置。"
+    },
+    "settings": {
+      "intro": "daemon 宿主机上的配置文件路径，启动时应用。用这个给智能体指定独立配置，而不是继承 CLI 默认。目前只有 Claude 和 OpenCode 运行时支持该字段。",
+      "claude_hint": "Claude 在启动时会把它作为 --settings <path> 传入。",
+      "opencode_hint": "OpenCode 在启动时会通过 OPENCODE_CONFIG=<path> 环境变量应用。",
+      "launch_mode_prefix": "启动方式：",
+      "input_placeholder": "/home/user/.claude/settings-work.json",
+      "clear_action": "清空",
+      "saved_toast": "已保存配置路径",
+      "save_failed_toast": "保存配置路径失败"
     },
     "runtime_config": {
       "intro": "选择 OpenClaw 运行时执行该智能体每一回合的方式。Local 模式让智能体直接在 daemon 进程内运行；Gateway 模式则把每一回合转发到一个 OpenClaw Gateway —— 适合 daemon 宿主只是轻量协调机、希望真正算力落在更强的远端机器上的场景。",

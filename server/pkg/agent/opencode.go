@@ -104,6 +104,24 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if opts.Cwd != "" {
 		env = append(env, "PWD="+opts.Cwd)
 	}
+	// If the caller pinned a settings/config file, point OpenCode at it via
+	// OPENCODE_CONFIG — the supported way to load a custom config file path
+	// (OpenCode has no --config flag yet; see opencode.ai/docs/config). A
+	// missing/unreadable path fails closed rather than silently launching with
+	// the default config. OPENCODE_CONFIG composes cleanly with the
+	// OPENCODE_CONFIG_CONTENT injection below (managed MCP): different
+	// channels merged at different scopes by OpenCode.
+	if opts.SettingsPath != "" {
+		settingsPath, err := validateSettingsPath(opts.SettingsPath)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		if _, dup := b.cfg.Env["OPENCODE_CONFIG"]; dup {
+			b.cfg.Logger.Warn("agent.custom_env sets OPENCODE_CONFIG but agent.settings_path takes precedence and overrides it")
+		}
+		env = append(env, "OPENCODE_CONFIG="+settingsPath)
+	}
 	// Project agent.mcp_config into OpenCode via OPENCODE_CONFIG_CONTENT —
 	// OpenCode's general inline-config injection mechanism that merges at
 	// "local" scope (after the project-config loop, before remote / managed

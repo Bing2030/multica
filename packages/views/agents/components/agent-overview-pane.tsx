@@ -9,6 +9,7 @@ import {
   ListTodo,
   Plug,
   Router,
+  Settings,
   Terminal,
   Webhook,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import { SkillsTab } from "./tabs/skills-tab";
 import { EnvTab } from "./tabs/env-tab";
 import { CustomArgsTab } from "./tabs/custom-args-tab";
 import { McpConfigTab } from "./tabs/mcp-config-tab";
+import { SettingsTab, providerSupportsSettingsPath } from "./tabs/settings-tab";
 import { IntegrationsTab } from "./tabs/integrations-tab";
 import { RuntimeConfigTab } from "./tabs/runtime-config-tab";
 import { ActorIssuesPanel } from "../../common/actor-issues-panel";
@@ -46,10 +48,11 @@ export type DetailTab =
   | "env"
   | "custom_args"
   | "mcp_config"
+  | "settings"
   | "integrations"
   | "runtime_config";
 
-const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "environment" | "custom_args" | "mcp_config" | "integrations" | "runtime_config"> = {
+const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "environment" | "custom_args" | "mcp_config" | "settings" | "integrations" | "runtime_config"> = {
   activity: "activity",
   tasks: "tasks",
   instructions: "instructions",
@@ -57,6 +60,7 @@ const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "
   env: "environment",
   custom_args: "custom_args",
   mcp_config: "mcp_config",
+  settings: "settings",
   integrations: "integrations",
   runtime_config: "runtime_config",
 };
@@ -72,6 +76,7 @@ const detailTabs: {
   { id: "env", icon: KeyRound },
   { id: "custom_args", icon: Terminal },
   { id: "mcp_config", icon: Plug },
+  { id: "settings", icon: Settings },
   { id: "integrations", icon: Webhook },
   { id: "runtime_config", icon: Router },
 ];
@@ -147,6 +152,11 @@ export function AgentOverviewPane({
   // showing it when the runtime row hasn't loaded yet so a slow fetch
   // can't transiently flicker the tab off and then on.
   //
+  // The Settings tab is only shown for local runtimes whose provider
+  // supports a settings/config file override (Claude and OpenCode today).
+  // Cloud runtimes can't read local paths, and other providers don't
+  // have a settings-file mechanism yet.
+  //
   // The Integrations tab only appears once the deployment has Lark wired
   // (configured). Unlike MCP we default to HIDING while the listing loads:
   // deployments without Lark are the common case, so flashing the tab on
@@ -158,9 +168,13 @@ export function AgentOverviewPane({
   // their runtime ignores — same anti-footgun rationale as the MCP gate.
   const visibleTabs = useMemo(() => {
     const showMcp = runtime ? providerSupportsMcpConfig(runtime.provider) : true;
+    const showSettings = runtime
+      ? runtime.runtime_mode === "local" && providerSupportsSettingsPath(runtime.provider)
+      : false;
     const showRuntimeConfig = runtime ? runtime.provider === "openclaw" : false;
     return detailTabs.filter((tab) => {
       if (tab.id === "mcp_config") return showMcp;
+      if (tab.id === "settings") return showSettings;
       if (tab.id === "integrations") return larkConfigured;
       if (tab.id === "runtime_config") return showRuntimeConfig;
       return true;
@@ -273,6 +287,16 @@ export function AgentOverviewPane({
           <TabContent>
             <McpConfigTab
               agent={agent}
+              onSave={(updates) => onUpdate(agent.id, updates)}
+              onDirtyChange={setActiveDirty}
+            />
+          </TabContent>
+        )}
+        {effectiveTab === "settings" && (
+          <TabContent>
+            <SettingsTab
+              agent={agent}
+              runtimeDevice={runtime ?? undefined}
               onSave={(updates) => onUpdate(agent.id, updates)}
               onDirtyChange={setActiveDirty}
             />
