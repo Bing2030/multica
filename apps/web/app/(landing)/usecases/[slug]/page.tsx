@@ -7,12 +7,7 @@ import { LandingHeader } from "@/features/landing/components/landing-header";
 import { LandingFooter } from "@/features/landing/components/landing-footer";
 import { Screenshot } from "@/features/landing/components/mdx/screenshot";
 import { getUseCasePageForLocale } from "@/lib/use-cases-source";
-import {
-  docsHrefForLocale,
-  getUseCaseLocale,
-  useCaseText,
-} from "@/lib/use-cases-i18n";
-import type { SupportedLocale } from "@multica/core/i18n";
+import { USE_CASE_TEXT_EN } from "@/lib/use-cases-i18n";
 
 type Params = { slug: string };
 
@@ -22,8 +17,7 @@ export async function generateMetadata(props: {
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { slug } = await props.params;
-  const locale = await getUseCaseLocale();
-  const page = getUseCasePageForLocale([slug], locale);
+  const page = getUseCasePageForLocale([slug]);
   if (!page) return {};
 
   return {
@@ -49,146 +43,160 @@ function nodeToString(node: ReactNode): string {
 
 function PlaceholderImage({ label }: { label: string }) {
   return (
-    <figure className="my-10 -mx-4 sm:mx-0">
-      <div
-        className={cn(
-          "flex aspect-[16/9] items-center justify-center rounded-lg",
-          "border-2 border-dashed border-[#0a0d12]/15 bg-[#fafafa]",
-          "px-6 text-center text-[13px] italic leading-relaxed text-[#0a0d12]/55",
-        )}
-      >
-        {label}
-      </div>
-    </figure>
+    <div className="flex aspect-[16/9] items-center justify-center rounded-lg bg-[#0a0d12]/[0.04]">
+      <span className="text-sm text-[#0a0d12]/40">{label}</span>
+    </div>
   );
 }
 
-function MDXCTA({
-  label,
-  variant,
+function SmartParagraph({
+  children,
   href,
 }: {
-  label: string;
-  variant: "primary" | "secondary";
+  children: ReactNode;
   href: string;
 }) {
+  const text = nodeToString(children);
+  const isCodeBlock = text.startsWith("```");
+
+  if (isCodeBlock) {
+    const langMatch = text.match(/^```(\w+)\n/);
+    const lang = langMatch?.[1] ?? "code";
+    const code = text
+      .replace(/^```(\w*)\n/, "")
+      .replace(/\n```$/, "");
+
+    return (
+      <pre className="my-6 overflow-x-auto rounded-lg bg-[#0a0d12]/[0.04] p-4 text-[13px] leading-[1.65]">
+        <code className="font-mono">{code}</code>
+      </pre>
+    );
+  }
+
   return (
-    <Link
-      href={href}
-      className={cn(
-        "inline-flex items-center gap-2 rounded-[12px] px-5 py-3 text-[14px] font-semibold not-italic transition-colors",
-        variant === "primary"
-          ? "bg-[#0a0d12] text-white hover:bg-[#0a0d12]/88"
-          : "border border-[#0a0d12]/15 text-[#0a0d12] hover:bg-[#0a0d12]/[0.04]",
-      )}
-    >
-      {label}
-    </Link>
+    <p className="mb-4 text-[15px] leading-[1.75] text-[#0a0d12]/80 sm:text-[16px]">
+      {children}
+    </p>
   );
 }
 
-// Marker patterns accept both half-width (`:`) and full-width (`：`) colons so
-// content authors can type either without breaking the placeholder rendering.
-// `副 ` is the Chinese marker for the secondary CTA and `Secondary ` is the
-// English equivalent — either works in either language's mdx file.
-const PLACEHOLDER_IMAGE_PREFIX = /^\[占位图[::]\s*/;
-const CTA_SECONDARY_PREFIX = "(?:副 |Secondary )";
-const CTA_BLOCK_TRIGGER = new RegExp(`^\\[${CTA_SECONDARY_PREFIX}?CTA[::]`);
-const CTA_LABEL_STRIP = new RegExp(`^${CTA_SECONDARY_PREFIX}?CTA[::]\\s*`);
-const CTA_PRIMARY = /^CTA[::]/;
+function createMdxComponents() {
+  const secondaryHref = "/docs";
 
-function createSmartParagraph(locale: SupportedLocale) {
-  const secondaryHref = docsHrefForLocale(locale);
-  return function SmartParagraph(props: ComponentPropsWithoutRef<"p">) {
-    const text = nodeToString(props.children).trim();
-
-    if (text.startsWith("[占位图")) {
-      const label = text
-        .replace(PLACEHOLDER_IMAGE_PREFIX, "")
-        .replace(/\]$/, "");
-      return <PlaceholderImage label={label} />;
-    }
-
-    if (CTA_BLOCK_TRIGGER.test(text)) {
-      const items = Array.from(text.matchAll(/\[([^\]]+)\]/g)).map(
-        (m) => m[1]!,
-      );
-      return (
-        <div className="my-8 flex flex-wrap items-center gap-3">
-          {items.map((item, i) => {
-            const isPrimary = CTA_PRIMARY.test(item);
-            const label = item.replace(CTA_LABEL_STRIP, "");
-            return (
-              <MDXCTA
-                key={i}
-                label={label}
-                variant={isPrimary ? "primary" : "secondary"}
-                href={isPrimary ? "/" : secondaryHref}
-              />
-            );
-          })}
-        </div>
-      );
-    }
-
-    return <p {...props} />;
-  };
-}
-
-function createMdxComponents(locale: SupportedLocale) {
-  const SmartParagraph = createSmartParagraph(locale);
   return {
+    SmartParagraph: (props: { children: ReactNode }) => (
+      <SmartParagraph href={secondaryHref} {...props} />
+    ),
     Screenshot,
-    h2: (props: ComponentPropsWithoutRef<"h2">) => (
-      <h2
-        className="mt-16 mb-4 scroll-mt-[100px] text-[1.5rem] font-semibold tracking-tight text-[#0a0d12] sm:text-[1.75rem]"
+    a: ({
+      href,
+      className,
+      children,
+      ...props
+    }: ComponentPropsWithoutRef<"a">) => {
+      const isExternal = href?.startsWith("http");
+      if (isExternal) {
+        return (
+          <a
+            href={href}
+            className={cn("text-[#0066ff] hover:underline", className)}
+            target="_blank"
+            rel="noopener noreferrer"
+            {...props}
+          >
+            {children}
+          </a>
+        );
+      }
+      return (
+        <Link
+          href={href ?? "#"}
+          className={cn("text-[#0066ff] hover:underline", className)}
+          {...props}
+        >
+          {children}
+        </Link>
+      );
+    },
+    img: (props: ComponentPropsWithoutRef<"img">) => (
+      <img
+        className="my-6 rounded-lg"
         {...props}
+        alt={props.alt ?? ""}
       />
-    ),
-    h3: (props: ComponentPropsWithoutRef<"h3">) => (
-      <h3
-        className="mt-10 mb-3 scroll-mt-[100px] text-[1.1rem] font-semibold tracking-tight text-[#0a0d12] sm:text-[1.2rem]"
-        {...props}
-      />
-    ),
-    p: SmartParagraph,
-    strong: (props: ComponentPropsWithoutRef<"strong">) => (
-      <strong className="font-semibold text-[#0a0d12]" {...props} />
-    ),
-    hr: (props: ComponentPropsWithoutRef<"hr">) => (
-      <hr className="my-12 border-[#0a0d12]/8" {...props} />
     ),
     blockquote: (props: ComponentPropsWithoutRef<"blockquote">) => (
       <blockquote
-        className="my-6 border-l-2 border-[#0a0d12]/15 pl-5 text-[#0a0d12]/65 italic"
+        className="my-6 border-l-4 border-[#0a0d12]/20 pl-4 text-[15px] italic text-[#0a0d12]/70"
         {...props}
       />
     ),
     ul: (props: ComponentPropsWithoutRef<"ul">) => (
       <ul
-        className="my-4 list-disc space-y-2 pl-6 marker:text-[#0a0d12]/30"
+        className="my-4 ml-6 list-disc space-y-2 text-[15px] leading-[1.7] text-[#0a0d12]/80"
         {...props}
       />
     ),
     ol: (props: ComponentPropsWithoutRef<"ol">) => (
       <ol
-        className="my-4 list-decimal space-y-2 pl-6 marker:text-[#0a0d12]/40"
+        className="my-4 ml-6 list-decimal space-y-2 text-[15px] leading-[1.7] text-[#0a0d12]/80"
         {...props}
       />
     ),
     li: (props: ComponentPropsWithoutRef<"li">) => (
-      <li className="pl-1" {...props} />
+      <li className="text-[15px] leading-[1.7] text-[#0a0d12]/80" {...props} />
     ),
-    a: ({ href, ...props }: ComponentPropsWithoutRef<"a">) => {
-      const className =
-        "underline decoration-[#0a0d12]/25 underline-offset-4 transition-colors hover:text-[#0a0d12] hover:decoration-[#0a0d12]/70";
-      // Internal links should keep SPA navigation (next/link); external links
-      // (mailto:, https://, etc.) stay as native anchors.
-      if (href && href.startsWith("/")) {
-        return <Link href={href} className={className} {...props} />;
-      }
-      return <a href={href} className={className} {...props} />;
-    },
+    h2: (props: ComponentPropsWithoutRef<"h2">) => (
+      <h2
+        className="mb-4 mt-10 text-[22px] font-semibold leading-[1.3] text-[#0a0d12]"
+        {...props}
+      />
+    ),
+    h3: (props: ComponentPropsWithoutRef<"h3">) => (
+      <h3
+        className="mb-3 mt-8 text-[18px] font-semibold leading-[1.35] text-[#0a0d12]"
+        {...props}
+      />
+    ),
+    h4: (props: ComponentPropsWithoutRef<"h4">) => (
+      <h4
+        className="mb-2 mt-6 text-[16px] font-semibold leading-[1.4] text-[#0a0d12]"
+        {...props}
+      />
+    ),
+    p: (props: ComponentPropsWithoutRef<"p">) => (
+      <p className="mb-4 text-[15px] leading-[1.75] text-[#0a0d12]/80" {...props} />
+    ),
+    strong: (props: ComponentPropsWithoutRef<"strong">) => (
+      <strong className="font-semibold text-[#0a0d12]" {...props} />
+    ),
+    em: (props: ComponentPropsWithoutRef<"em">) => (
+      <em className="italic" {...props} />
+    ),
+    hr: () => <hr className="my-8 border-t border-[#0a0d12]/10" />,
+    table: (props: ComponentPropsWithoutRef<"table">) => (
+      <div className="my-6 overflow-x-auto">
+        <table className="min-w-full divide-y divide-[#0a0d12]/10" {...props} />
+      </div>
+    ),
+    thead: (props: ComponentPropsWithoutRef<"thead">) => (
+      <thead className="bg-[#0a0d12]/[0.02]" {...props} />
+    ),
+    tbody: (props: ComponentPropsWithoutRef<"tbody">) => (
+      <tbody className="divide-y divide-[#0a0d12]/10" {...props} />
+    ),
+    tr: (props: ComponentPropsWithoutRef<"tr">) => (
+      <tr className="even:bg-[#0a0d12]/[0.01]" {...props} />
+    ),
+    th: (props: ComponentPropsWithoutRef<"th">) => (
+      <th
+        className="px-4 py-3 text-left text-[12px] font-medium uppercase tracking-[0.05em] text-[#0a0d12]/70"
+        {...props}
+      />
+    ),
+    td: (props: ComponentPropsWithoutRef<"td">) => (
+      <td className="px-4 py-3 text-[14px] text-[#0a0d12]/80" {...props} />
+    ),
     code: (props: ComponentPropsWithoutRef<"code">) => (
       <code
         className="rounded bg-[#0a0d12]/[0.06] px-1.5 py-0.5 font-mono text-[0.88em] text-[#0a0d12]"
@@ -206,16 +214,15 @@ function createMdxComponents(locale: SupportedLocale) {
 
 export default async function UseCasePage(props: { params: Promise<Params> }) {
   const { slug } = await props.params;
-  const locale = await getUseCaseLocale();
-  const text = useCaseText[locale];
-  const page = getUseCasePageForLocale([slug], locale);
+  const text = USE_CASE_TEXT_EN;
+  const page = getUseCasePageForLocale([slug]);
   if (!page) notFound();
 
   const MDX = page.data.body;
   const toc = ((page.data as { toc?: TocItem[] }).toc ?? []).filter(
     (item) => item.depth === 2 || item.depth === 3,
   );
-  const mdxComponents = createMdxComponents(locale);
+  const mdxComponents = createMdxComponents();
 
   return (
     <>

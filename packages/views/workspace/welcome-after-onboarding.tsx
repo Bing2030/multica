@@ -324,14 +324,13 @@ function RuntimeWelcome({
   // i18n.language so a language switch refreshes everything in one
   // re-render; bundle is rebuilt whenever the questionnaire row changes.
   const userContextLabels: UserContextLabels = useMemo(() => {
-    const lang = pickContentLang(i18n.language);
     return {
       heading: t(($) => $.welcome_after_onboarding.user_context_heading),
       roleLabel: t(($) => $.welcome_after_onboarding.user_context_role_label),
       useCaseLabel: t(
         ($) => $.welcome_after_onboarding.user_context_use_case_label,
       ),
-      listSeparator: lang === "zh" || lang === "ja" ? "、" : ", ",
+      listSeparator: ", ",
       role: {
         engineer: t(($) => $.questions.role.engineer),
         product: t(($) => $.questions.role.product),
@@ -355,7 +354,7 @@ function RuntimeWelcome({
         other: t(($) => $.questions.use_case.other),
       },
     };
-  }, [t, i18n.language]);
+  }, [t]);
   const toggle = (id: StarterCardId) => {
     if (submitting) return;
     setSelected((prev) => {

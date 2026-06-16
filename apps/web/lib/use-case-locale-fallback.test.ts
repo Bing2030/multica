@@ -60,88 +60,27 @@ describe("mergeUseCasePagesWithEnglishFallback", () => {
   });
 });
 
-describe("use case source locale fallback", () => {
-  it("keeps localized and English-only pages in the production index wrapper", () => {
-    const localizedPage = {
-      slugs: ["localized"],
-      data: { title: "Localized" },
-    };
-    const englishDuplicate = {
-      slugs: ["localized"],
-      data: { title: "English duplicate" },
-    };
-    const englishOnly = {
-      slugs: ["english-only"],
-      data: { title: "English only" },
-    };
+describe("use case source (English only)", () => {
+  it("returns English pages directly", () => {
+    const englishPages = [
+      { slugs: ["page-one"], data: { title: "Page One" } },
+      { slugs: ["page-two"], data: { title: "Page Two" } },
+    ];
 
-    vi.mocked(useCasesSource.getPages).mockImplementation((lang?: string) => {
-      if (lang === "ko") {
-        return [localizedPage] as ReturnType<typeof useCasesSource.getPages>;
-      }
-      if (lang === "en") {
-        return [
-          englishDuplicate,
-          englishOnly,
-        ] as ReturnType<typeof useCasesSource.getPages>;
-      }
-      return [] as ReturnType<typeof useCasesSource.getPages>;
-    });
-
-    expect(
-      getUseCasePagesForLocale("ko").map((page) => page.slugs.join("/")),
-    ).toEqual(["localized", "english-only"]);
-  });
-
-  it("maps the ja locale to the ja use-case lang and keeps the English fallback", () => {
-    const localizedPage = {
-      slugs: ["localized"],
-      data: { title: "ローカライズ済み" },
-    };
-    const englishOnly = {
-      slugs: ["english-only"],
-      data: { title: "English only" },
-    };
-
-    vi.mocked(useCasesSource.getPages).mockImplementation((lang?: string) => {
-      if (lang === "ja") {
-        return [localizedPage] as ReturnType<typeof useCasesSource.getPages>;
-      }
-      if (lang === "en") {
-        return [englishOnly] as ReturnType<typeof useCasesSource.getPages>;
-      }
-      return [] as ReturnType<typeof useCasesSource.getPages>;
-    });
-
-    expect(
-      getUseCasePagesForLocale("ja").map((page) => page.slugs.join("/")),
-    ).toEqual(["localized", "english-only"]);
-  });
-
-  it("falls back to English-only detail pages in the production detail wrapper", () => {
-    const localizedPage = {
-      slugs: ["localized"],
-      data: { title: "Localized" },
-    };
-    const englishOnly = {
-      slugs: ["english-only"],
-      data: { title: "English only" },
-    };
-
-    vi.mocked(useCasesSource.getPage).mockImplementation(
-      (slugs: string[] | undefined, lang?: string) => {
-        const key = `${lang}:${slugs?.join("/") ?? ""}`;
-        if (key === "ko:localized") {
-          return localizedPage as ReturnType<typeof useCasesSource.getPage>;
-        }
-        if (key === "en:english-only") {
-          return englishOnly as ReturnType<typeof useCasesSource.getPage>;
-        }
-        return undefined as ReturnType<typeof useCasesSource.getPage>;
-      },
+    vi.mocked(useCasesSource.getPages).mockReturnValue(
+      englishPages as ReturnType<typeof useCasesSource.getPages>,
     );
 
-    expect(getUseCasePageForLocale(["localized"], "ko")).toBe(localizedPage);
-    expect(getUseCasePageForLocale(["english-only"], "ko")).toBe(englishOnly);
+    expect(getUseCasePagesForLocale()).toEqual(englishPages);
+  });
+
+  it("returns English detail pages directly", () => {
+    const page = { slugs: ["some-slug"], data: { title: "Some Page" } };
+
+    vi.mocked(useCasesSource.getPage).mockReturnValue(
+      page as ReturnType<typeof useCasesSource.getPage>,
+    );
+
+    expect(getUseCasePageForLocale(["some-slug"])).toBe(page);
   });
 });

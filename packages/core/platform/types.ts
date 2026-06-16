@@ -1,5 +1,4 @@
 import type {
-  LocaleAdapter,
   LocaleResources,
   SupportedLocale,
 } from "../i18n";
@@ -37,7 +36,4 @@ export interface CoreProviderProps {
   locale: SupportedLocale;
   /** i18next resources, server-preloaded for the active locale. */
   resources: Record<string, LocaleResources>;
-  /** Locale adapter for persisting user choice (used by Settings switcher).
-   *  Optional because some shells (e.g. CLI auth pages) don't need switching. */
-  localeAdapter?: LocaleAdapter;
 }
