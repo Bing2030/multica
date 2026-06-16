@@ -105,7 +105,10 @@ export function stripLeadingSeparator(argv) {
 export function normalizeGitVersion(raw) {
   if (!raw) return null;
   const stripped = raw.replace(/^v/, "");
-  if (!/^\d/.test(stripped)) {
+  // A valid semver starts with major.minor.patch (e.g. "0.1.36", "1.0.0-rc.2").
+  // A bare commit hash from `git describe --always` has no dots, even when it
+  // starts with a digit (e.g. "3ce5af41"), so it must fall back to 0.0.0-<hash>.
+  if (!/^\d+\.\d+\.\d+/.test(stripped)) {
     // No reachable tag — `git describe` fell back to just the commit hash.
     return `0.0.0-${stripped}`;
   }

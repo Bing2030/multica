@@ -44,6 +44,13 @@ describe("normalizeGitVersion", () => {
     expect(normalizeGitVersion("f1415e96")).toBe("0.0.0-f1415e96");
     expect(normalizeGitVersion("abc1234")).toBe("0.0.0-abc1234");
   });
+
+  it("falls back to 0.0.0-<hash> for a commit hash that starts with a digit", () => {
+    // A bare commit hash can start with a digit (e.g. "3ce5af41"). It has no
+    // dots so it is not a valid semver and must still fall back to 0.0.0-<hash>.
+    expect(normalizeGitVersion("3ce5af41")).toBe("0.0.0-3ce5af41");
+    expect(normalizeGitVersion("1234567")).toBe("0.0.0-1234567");
+  });
 });
 
 describe("stripLeadingSeparator", () => {
