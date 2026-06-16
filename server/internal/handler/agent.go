@@ -60,7 +60,15 @@ type AgentResponse struct {
 	// ThinkingLevel is the runtime-native reasoning/effort token persisted
 	// for this agent (empty = use runtime default). The picker is per-runtime
 	// per-model; the API never normalizes across providers. See MUL-2339.
-	ThinkingLevel string              `json:"thinking_level"`
+	ThinkingLevel string `json:"thinking_level"`
+	// SettingsPath is an optional path to a provider settings/config file on
+	// the daemon host (e.g. one of several local Claude Code settings.json
+	// files). The provider backend applies it at launch: Claude Code appends
+	// `--settings <path>`, OpenCode sets `OPENCODE_CONFIG=<path>`. Empty
+	// means "no override" — the CLI loads its own default. Only the path is
+	// stored; the file's contents stay on disk, so (unlike mcp_config) this
+	// field carries no secrets and is never redacted. Local runtime only.
+	SettingsPath string `json:"settings_path,omitempty"`
 	OwnerID       *string             `json:"owner_id"`
 	Skills        []AgentSkillSummary `json:"skills"`
 	CreatedAt     string              `json:"created_at"`
@@ -136,6 +144,7 @@ func agentToResponse(a db.Agent) AgentResponse {
 		MaxConcurrentTasks: a.MaxConcurrentTasks,
 		Model:              a.Model.String,
 		ThinkingLevel:      a.ThinkingLevel.String,
+		SettingsPath:       a.SettingsPath.String,
 		OwnerID:            uuidToPtr(a.OwnerID),
 		Skills:             []AgentSkillSummary{},
 		CreatedAt:          timestampToString(a.CreatedAt),
@@ -350,6 +359,10 @@ type TaskAgentData struct {
 	McpConfig     json.RawMessage          `json:"mcp_config,omitempty"`
 	Model         string                   `json:"model,omitempty"`
 	ThinkingLevel string                   `json:"thinking_level,omitempty"`
+	// SettingsPath forwards the agent's optional provider settings/config
+	// file path to the daemon, which applies it at launch (Claude →
+	// --settings, OpenCode → OPENCODE_CONFIG). Empty = no override.
+	SettingsPath string `json:"settings_path,omitempty"`
 	// RuntimeConfig is the agent's saved runtime_config JSON as-is. The
 	// daemon decodes it per-provider — e.g. the openclaw backend reads
 	// `mode` + `gateway.*` to choose between embedded and gateway routing
@@ -669,6 +682,10 @@ type CreateAgentRequest struct {
 	MaxConcurrentTasks int32             `json:"max_concurrent_tasks"`
 	Model              string            `json:"model"`
 	ThinkingLevel      string            `json:"thinking_level"`
+	// SettingsPath optionally points the agent at a provider settings/config
+	// file on the daemon host. Empty = no override (CLI default). See
+	// AgentResponse.SettingsPath.
+	SettingsPath string `json:"settings_path,omitempty"`
 	// Template records which template slug was used to seed this agent
 	// (e.g. "coding" / "planning" / "writing" / "assistant"). Empty when
 	// the caller didn't come from a template picker — the `agent_created`
@@ -819,6 +836,7 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		McpConfig:          mc,
 		Model:              pgtype.Text{String: req.Model, Valid: req.Model != ""},
 		ThinkingLevel:      pgtype.Text{String: req.ThinkingLevel, Valid: req.ThinkingLevel != ""},
+		SettingsPath:       pgtype.Text{String: strings.TrimSpace(req.SettingsPath), Valid: strings.TrimSpace(req.SettingsPath) != ""},
 	})
 	if err != nil {
 		// Unique constraint on (workspace_id, name) — return a clear conflict error
@@ -886,6 +904,12 @@ type UpdateAgentRequest struct {
 	// Distinguishing those modes is why this is a pointer; the raw-fields
 	// map captured at decode time tells us whether the key was sent.
 	ThinkingLevel *string `json:"thinking_level"`
+	// SettingsPath is treated with the same tri-state semantics as
+	// thinking_level: omitted → no change; present with "" → explicit clear
+	// (run ClearAgentSettingsPath post-update); present with a non-empty
+	// path → set (whitespace-trimmed). Pointer + raw-fields map distinguish
+	// "absent" from "explicitly cleared".
+	SettingsPath *string `json:"settings_path"`
 }
 
 // workspaceAlwaysRedactSecrets reports whether the workspace has opted
@@ -1100,6 +1124,23 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		params.Model = pgtype.Text{String: *req.Model, Valid: true}
 	}
 
+	// settings_path handling — same tri-state shape as thinking_level /
+	// mcp_config: field omitted → no change; "" → explicit clear (dedicated
+	// ClearAgentSettingsPath query post-update, since COALESCE cannot write
+	// NULL); non-empty → set (whitespace-trimmed). No file-existence check
+	// here: the API server and daemon may be different hosts, and the file
+	// may not exist yet when the agent is configured. The daemon validates
+	// readability at launch and fails the task with a clear error otherwise.
+	shouldClearSettingsPath := false
+	if req.SettingsPath != nil {
+		trimmed := strings.TrimSpace(*req.SettingsPath)
+		if trimmed == "" {
+			shouldClearSettingsPath = true
+		} else {
+			params.SettingsPath = pgtype.Text{String: trimmed, Valid: true}
+		}
+	}
+
 	// thinking_level handling (MUL-2339). Tri-state semantics:
 	//   - field omitted  → leave column alone (COALESCE narg), but if a
 	//     runtime change in this same request would make the *existing*
@@ -1177,6 +1218,14 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			slog.Warn("clear agent thinking_level failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 			writeError(w, http.StatusInternalServerError, "failed to clear thinking_level: "+err.Error())
+			return
+		}
+	}
+	if shouldClearSettingsPath {
+		updated, err = h.Queries.ClearAgentSettingsPath(r.Context(), updated.ID)
+		if err != nil {
+			slog.Warn("clear agent settings_path failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to clear settings_path: "+err.Error())
 			return
 		}
 	}

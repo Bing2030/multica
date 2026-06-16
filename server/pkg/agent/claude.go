@@ -56,6 +56,20 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		}
 	}()
 
+	// If the caller pinned a settings file, validate it is readable on this
+	// host and pass --settings <path>. A missing/unreadable path fails closed
+	// here rather than launching Claude with default settings and silently
+	// ignoring the configured file. `--settings` is blocked in custom_args so
+	// there is no duplicate-flag conflict regardless of position.
+	if opts.SettingsPath != "" {
+		settingsPath, err := validateSettingsPath(opts.SettingsPath)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		args = append(args, "--settings", settingsPath)
+	}
+
 	cmd := exec.CommandContext(runCtx, execPath, args...)
 	hideAgentWindow(cmd)
 	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args)
@@ -488,6 +502,12 @@ var claudeBlockedArgs = map[string]blockedArgMode{
 	"--input-format":    blockedWithValue,  // stream-json protocol
 	"--permission-mode": blockedWithValue,  // bypassPermissions for autonomous operation
 	"--mcp-config":      blockedWithValue,  // set by daemon from agent.mcp_config
+	// `--settings` is owned by the per-agent settings_path field. The daemon
+	// injects --settings <path> only when opts.SettingsPath is set; if a user
+	// nevertheless writes it in custom_args we drop the duplicate rather than
+	// letting the CLI receive two --settings values (the same rationale as
+	// --effort below).
+	"--settings": blockedWithValue,
 	// `--effort` is owned by the per-agent thinking_level picker so a
 	// user-supplied custom_arg cannot silently outvote it. The daemon
 	// injects --effort only when opts.ThinkingLevel is set; if a user
@@ -740,6 +760,29 @@ func writeMcpConfigToTemp(raw json.RawMessage) (string, error) {
 		return "", fmt.Errorf("close mcp config temp file: %w", err)
 	}
 	return f.Name(), nil
+}
+
+// validateSettingsPath confirms the configured provider settings file exists
+// and is a regular file on this (daemon) host. Used by backends that consume
+// opts.SettingsPath so a misconfigured path fails the task with a clear error
+// instead of silently launching the agent with default settings — the user
+// pinned a path expecting it to apply, so silently ignoring it is worse than
+// failing. Returns the whitespace-trimmed path on success, or "" for empty
+// input (no override). os.Stat is sufficient: existence + not-a-directory is
+// the precondition; actual read permission is enforced when the CLI opens it.
+func validateSettingsPath(path string) (string, error) {
+	cleaned := strings.TrimSpace(path)
+	if cleaned == "" {
+		return "", nil
+	}
+	info, err := os.Stat(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("settings file not accessible %q: %w", cleaned, err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("settings path %q is a directory, expected a file", cleaned)
+	}
+	return cleaned, nil
 }
 
 func detectCLIVersion(ctx context.Context, execPath string) (string, error) {

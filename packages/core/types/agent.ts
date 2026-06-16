@@ -206,6 +206,15 @@ export interface Agent {
    * (MUL-2339).
    */
   thinking_level?: string;
+  /**
+   * Per-agent settings/config file path for providers that support it
+   * (Claude → --settings, OpenCode → OPENCODE_CONFIG). Empty/omitted
+   * means "no override": the daemon launches the CLI with its default
+   * config resolution. The file must exist on the daemon host at launch
+   * time; validation is lazy (fail-on-launch, not fail-on-config). Path
+   * is stored as-is (no secrets, unlike mcp_config). MUL-3400.
+   */
+  settings_path?: string;
   owner_id: string | null;
   skills: AgentSkillSummary[];
   created_at: string;
@@ -241,6 +250,8 @@ export interface CreateAgentRequest {
   model?: string;
   /** Optional runtime-native reasoning/effort token. See `Agent.thinking_level`. */
   thinking_level?: string;
+  /** Per-agent settings/config file path. See `Agent.settings_path`. */
+  settings_path?: string;
   /** Optional template slug used by the onboarding agent picker. Surfaced
    *  as the `template` property on the `agent_created` PostHog event. */
   template?: string;
@@ -355,6 +366,14 @@ export interface UpdateAgentRequest {
    *     runtime's provider enum, rejected with 400 if not recognised
    */
   thinking_level?: string;
+  /**
+   * Per-agent settings/config file path. Tri-state semantics (MUL-3400):
+   *   - field omitted → no change
+   *   - "" → clear the override; the daemon falls back to CLI defaults
+   *   - non-empty → set; the file must exist and be readable at launch
+   *     time on the daemon host (lazy validation)
+   */
+  settings_path?: string | null;
 }
 
 /**

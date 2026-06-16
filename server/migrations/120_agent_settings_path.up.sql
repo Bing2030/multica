@@ -1,0 +1,11 @@
+-- Per-agent settings/config file path on the daemon host. Lets an agent
+-- point at a specific provider settings file (e.g. one of several local
+-- Claude Code settings.json files) so different agents can run with
+-- different configurations. The provider backend translates the path at
+-- launch: Claude Code appends `--settings <path>`, OpenCode sets
+-- `OPENCODE_CONFIG=<path>`. NULL means "no override" — the CLI loads its
+-- own default settings. Only the path is stored; the file's contents
+-- (which may carry secrets) stay on disk, so unlike mcp_config there is
+-- no redaction model. Local runtime only — the cloud runtime cannot read
+-- a path on the daemon host.
+ALTER TABLE agent ADD COLUMN settings_path TEXT;
