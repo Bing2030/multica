@@ -50,33 +50,10 @@ function fetchRuntimeConfig(): RuntimeConfigResult {
 const appInfo = fetchAppInfo();
 const runtimeConfig = fetchRuntimeConfig();
 
-// Read the OS-preferred locale that main injected via additionalArguments.
-// Zero IPC, zero blocking — process.argv is populated before preload runs.
-function fetchSystemLocale(): string {
-  const arg = process.argv.find((a) => a.startsWith("--multica-locale="));
-  return arg?.split("=")[1] ?? "en";
-}
-
-const systemLocale = fetchSystemLocale();
-
 const desktopAPI = {
   /** App version + normalized OS. Read once at preload time so the renderer
    *  can use it synchronously when initializing the API client. */
   appInfo,
-  /** OS-preferred locale (BCP 47), passed from main via additionalArguments.
-   *  Used by the renderer's LocaleAdapter as the system-preference signal. */
-  systemLocale,
-  /** Subscribe to OS language changes detected after boot. The renderer
-   *  decides whether to act (no-op when the user has an explicit Settings
-   *  choice). Returns an unsubscribe function. */
-  onSystemLocaleChanged: (callback: (locale: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, locale: string) =>
-      callback(locale);
-    ipcRenderer.on("locale:system-changed", handler);
-    return () => {
-      ipcRenderer.removeListener("locale:system-changed", handler);
-    };
-  },
   /** Validated runtime endpoint config, or a blocking config error. */
   runtimeConfig,
   /** Read + clear any freeze/crash breadcrumb left by a previous session, so
@@ -262,21 +239,9 @@ const daemonAPI = {
     ipcRenderer.on("daemon:log-line", handler);
     return () => ipcRenderer.removeListener("daemon:log-line", handler);
   },
-  openLogFile: (): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke("daemon:open-log-file"),
 };
 
 const updaterAPI = {
-  onUpdateAvailable: (callback: (info: { version: string; releaseNotes?: string }) => void) => {
-    const handler = (_: unknown, info: { version: string; releaseNotes?: string }) => callback(info);
-    ipcRenderer.on("updater:update-available", handler);
-    return () => ipcRenderer.removeListener("updater:update-available", handler);
-  },
-  onDownloadProgress: (callback: (progress: { percent: number }) => void) => {
-    const handler = (_: unknown, progress: { percent: number }) => callback(progress);
-    ipcRenderer.on("updater:download-progress", handler);
-    return () => ipcRenderer.removeListener("updater:download-progress", handler);
-  },
   onUpdateDownloaded: (
     callback: (info: { version: string; releaseNotes?: string }) => void,
   ) => {
@@ -285,7 +250,6 @@ const updaterAPI = {
     ipcRenderer.on("updater:update-downloaded", handler);
     return () => ipcRenderer.removeListener("updater:update-downloaded", handler);
   },
-  downloadUpdate: () => ipcRenderer.invoke("updater:download"),
   installUpdate: () => ipcRenderer.invoke("updater:install"),
   checkForUpdates: (): Promise<
     | { ok: true; currentVersion: string; latestVersion: string; available: boolean }

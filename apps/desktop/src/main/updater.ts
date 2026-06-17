@@ -29,10 +29,7 @@ export type ManualUpdateCheckResult =
     }
   | { ok: false; error: string };
 
-type RendererChannel =
-  | "updater:update-available"
-  | "updater:download-progress"
-  | "updater:update-downloaded";
+type RendererChannel = "updater:update-downloaded";
 
 function isDestroyedObjectError(err: unknown): boolean {
   return err instanceof Error && err.message.includes("Object has been destroyed");
@@ -85,21 +82,6 @@ function checkForUpdatesOnce(): Promise<unknown> {
 }
 
 export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
-  autoUpdater.on("update-available", (info) => {
-    // Forwarded for renderer-side state tracking only; the notification UI
-    // does not render an "available" affordance with autoDownload=true.
-    sendToLiveRenderer(getMainWindow(), "updater:update-available", {
-      version: info.version,
-      releaseNotes: info.releaseNotes,
-    });
-  });
-
-  autoUpdater.on("download-progress", (progress) => {
-    sendToLiveRenderer(getMainWindow(), "updater:download-progress", {
-      percent: progress.percent,
-    });
-  });
-
   autoUpdater.on("update-downloaded", (info: UpdateDownloadedEvent) => {
     sendToLiveRenderer(getMainWindow(), "updater:update-downloaded", {
       version: info.version,
@@ -109,12 +91,6 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 
   autoUpdater.on("error", (err) => {
     console.error("Auto-updater error:", err);
-  });
-
-  // Retained for IPC back-compat with older renderer bundles. With
-  // autoDownload=true the renderer no longer triggers this path.
-  ipcMain.handle("updater:download", () => {
-    return autoUpdater.downloadUpdate();
   });
 
   ipcMain.handle("updater:install", () => {

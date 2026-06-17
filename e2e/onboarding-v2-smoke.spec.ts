@@ -87,23 +87,3 @@ test("onboarding v2 — rage-skip all 3 questions", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /Name your workspace/i })).toBeVisible({ timeout: 10000 });
   await page.screenshot({ path: `${SHOTS_DIR}/06-after-rage-skip.png` });
 });
-
-test("onboarding v2 — zh-Hans renders Chinese labels", async ({ page, context }) => {
-  await context.addCookies([
-    { name: "multica-locale", value: "zh-Hans", url: "http://localhost:13442" },
-  ]);
-  const api = new TestApiClient();
-  await api.login(`zh-${Date.now()}@localhost`, "中文用户");
-  const token = api.getToken();
-
-  await page.addInitScript((t) => localStorage.setItem("multica_token", t), token);
-  await page.goto("/onboarding", { waitUntil: "domcontentloaded" });
-  await waitForPageText(page, "在 web 端继续");
-
-  await page.getByRole("button").first().click().catch(() => {});
-
-  // Source screen — Chinese question
-  await expect(page.getByText("你是从哪里了解到 Multica 的？")).toBeVisible({ timeout: 10000 });
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: `${SHOTS_DIR}/07-source-zh.png` });
-});

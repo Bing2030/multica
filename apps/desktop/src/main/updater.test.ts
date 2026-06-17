@@ -10,7 +10,6 @@ const ctx = vi.hoisted(() => ({
     updateInfo: { version: "0.3.18" },
     isUpdateAvailable: false,
   })),
-  downloadUpdate: vi.fn(),
   quitAndInstall: vi.fn(),
   getVersion: vi.fn(() => "0.3.17"),
 }));
@@ -27,7 +26,6 @@ vi.mock("electron-updater", () => {
       return autoUpdater;
     }),
     checkForUpdates: ctx.checkForUpdates,
-    downloadUpdate: ctx.downloadUpdate,
     quitAndInstall: ctx.quitAndInstall,
   };
   return { autoUpdater };
@@ -106,13 +104,14 @@ function makeWindowWithThrowingSend(error: Error) {
   };
 }
 
+const DOWNLOADED_PAYLOAD = { version: "0.3.18", releaseNotes: "notes" };
+
 describe("setupAutoUpdater", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     ctx.handlers.clear();
     ctx.ipcHandle.mockClear();
     ctx.checkForUpdates.mockClear();
-    ctx.downloadUpdate.mockClear();
     ctx.quitAndInstall.mockClear();
     ctx.getVersion.mockClear();
   });
@@ -122,49 +121,43 @@ describe("setupAutoUpdater", () => {
     vi.useRealTimers();
   });
 
-  it("forwards update progress to a live renderer", () => {
+  it("forwards update-downloaded to a live renderer", () => {
     const { win, send } = makeWindow();
     setupAutoUpdater(() => win);
 
-    emitUpdater("download-progress", { percent: 42 });
+    emitUpdater("update-downloaded", DOWNLOADED_PAYLOAD);
 
-    expect(send).toHaveBeenCalledWith("updater:download-progress", {
-      percent: 42,
-    });
+    expect(send).toHaveBeenCalledWith("updater:update-downloaded", DOWNLOADED_PAYLOAD);
   });
 
-  it("skips update progress when the BrowserWindow has already been destroyed", () => {
+  it("skips update-downloaded when the BrowserWindow has already been destroyed", () => {
     setupAutoUpdater(() => makeDestroyedWindow());
 
-    expect(() => emitUpdater("download-progress", { percent: 42 })).not.toThrow();
+    expect(() => emitUpdater("update-downloaded", DOWNLOADED_PAYLOAD)).not.toThrow();
   });
 
-  it("skips update progress when the BrowserWindow webContents has already been destroyed", () => {
+  it("skips update-downloaded when the BrowserWindow webContents has already been destroyed", () => {
     const { win, send } = makeWindowWithDestroyedWebContents();
     setupAutoUpdater(() => win);
 
-    expect(() => emitUpdater("download-progress", { percent: 42 })).not.toThrow();
+    expect(() => emitUpdater("update-downloaded", DOWNLOADED_PAYLOAD)).not.toThrow();
     expect(send).not.toHaveBeenCalled();
   });
 
-  it("skips update progress when webContents.send loses a destroy race", () => {
+  it("skips update-downloaded when webContents.send loses a destroy race", () => {
     const { win, send } = makeWindowWithThrowingSend(
       new TypeError("Object has been destroyed"),
     );
     setupAutoUpdater(() => win);
 
-    expect(() => emitUpdater("download-progress", { percent: 42 })).not.toThrow();
-    expect(send).toHaveBeenCalledWith("updater:download-progress", {
-      percent: 42,
-    });
+    expect(() => emitUpdater("update-downloaded", DOWNLOADED_PAYLOAD)).not.toThrow();
+    expect(send).toHaveBeenCalledWith("updater:update-downloaded", DOWNLOADED_PAYLOAD);
   });
 
   it("rethrows non-destroy errors from webContents.send", () => {
     const { win } = makeWindowWithThrowingSend(new Error("boom"));
     setupAutoUpdater(() => win);
 
-    expect(() => emitUpdater("download-progress", { percent: 42 })).toThrow(
-      "boom",
-    );
+    expect(() => emitUpdater("update-downloaded", DOWNLOADED_PAYLOAD)).toThrow("boom");
   });
 });

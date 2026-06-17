@@ -10,10 +10,6 @@ interface DesktopAPI {
     version: string;
     os: "macos" | "windows" | "linux" | "unknown";
   };
-  /** OS-preferred locale (BCP 47) injected by main via additionalArguments. */
-  systemLocale: string;
-  /** Subscribe to OS language changes detected after boot. Returns an unsubscribe function. */
-  onSystemLocaleChanged: (callback: (locale: string) => void) => () => void;
   /** Validated runtime endpoint config, or a blocking config error. */
   runtimeConfig: RuntimeConfigResult;
   /** Read + clear any freeze/crash breadcrumb from a previous session, so the
@@ -136,16 +132,12 @@ interface DaemonAPI {
   startLogStream: () => void;
   stopLogStream: () => void;
   onLogLine: (callback: (line: string) => void) => () => void;
-  openLogFile: () => Promise<{ success: boolean; error?: string }>;
 }
 
 interface UpdaterAPI {
-  onUpdateAvailable: (callback: (info: { version: string; releaseNotes?: string }) => void) => () => void;
-  onDownloadProgress: (callback: (progress: { percent: number }) => void) => () => void;
   onUpdateDownloaded: (
     callback: (info: { version: string; releaseNotes?: string }) => void,
   ) => () => void;
-  downloadUpdate: () => Promise<void>;
   installUpdate: () => Promise<void>;
   checkForUpdates: () => Promise<
     | { ok: true; currentVersion: string; latestVersion: string; available: boolean }

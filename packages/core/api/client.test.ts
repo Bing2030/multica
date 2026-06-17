@@ -681,4 +681,82 @@ describe("ApiClient", () => {
       expect(JSON.parse(fetchMock.mock.calls[1]![1]?.body as string)).toEqual({ content: "again" });
     });
   });
+
+  describe("squad response parsing", () => {
+    const squadResponse = {
+      id: "squad-1",
+      workspace_id: "ws-1",
+      name: "Alpha Squad",
+      description: "desc",
+      instructions: "",
+      avatar_url: null,
+      leader_id: "user-1",
+      creator_id: "user-1",
+      created_at: "2026-06-01T00:00:00Z",
+      updated_at: "2026-06-02T00:00:00Z",
+      archived_at: null,
+      archived_by: null,
+      member_count: 2,
+      member_preview: [],
+    };
+
+    it("parses a well-formed squad response", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(squadResponse), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const client = new ApiClient("https://api.example.test");
+      const result = await client.getSquad("squad-1");
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/squads/squad-1");
+      expect(result.id).toBe("squad-1");
+      expect(result.name).toBe("Alpha Squad");
+      expect(result.member_count).toBe(2);
+    });
+
+    it.each([
+      ["a null body", null],
+      ["a non-string id", { ...squadResponse, id: 123 }],
+      ["a body missing the required id", { name: "ghost squad" }],
+    ])("getSquad falls back for %s", async (_label, body) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      const client = new ApiClient("https://api.example.test");
+      const result = await client.getSquad("squad-1");
+
+      expect(result.id).toBe("");
+    });
+
+    it.each([
+      ["a null body", null],
+      ["a non-array body", { not: "an array" }],
+    ])("listSquads falls back to an empty list for %s", async (_label, body) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      const client = new ApiClient("https://api.example.test");
+      const result = await client.listSquads();
+
+      expect(result).toEqual([]);
+    });
+  });
 });
