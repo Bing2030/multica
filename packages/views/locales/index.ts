@@ -23,7 +23,6 @@ import enLayout from "./en/layout.json";
 import enUsage from "./en/usage.json";
 import enUi from "./en/ui.json";
 import enSquads from "./en/squads.json";
-import enBilling from "./en/billing.json";
 
 // English is the only supported locale.
 export const RESOURCES: Record<string, LocaleResources> = {
@@ -52,6 +51,5 @@ export const RESOURCES: Record<string, LocaleResources> = {
     usage: enUsage,
     ui: enUi,
     squads: enSquads,
-    billing: enBilling,
   },
 };
