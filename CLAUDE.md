@@ -125,15 +125,10 @@ cd server && go test ./internal/handler/ -run TestName
 # Run a single E2E test (requires backend + frontend running)
 pnpm exec playwright test e2e/tests/specific-test.spec.ts
 
-# Mobile (Expo) — two environments only: dev and staging
-pnpm dev:mobile                  # Metro, dev env       (reads apps/mobile/.env.development.local)
-pnpm dev:mobile:staging          # Metro, staging env   (reads apps/mobile/.env.staging)
-pnpm ios:mobile                  # Native build + install dev-client to iOS Simulator, dev env
-pnpm ios:mobile:staging          # Native build + install dev-client to iOS Simulator, staging env
-pnpm ios:mobile:device           # Native build + install dev-client to USB iPhone, dev env
-pnpm ios:mobile:device:staging   # Native build + install dev-client to USB iPhone, staging env
-# Daily flow: run `pnpm dev:mobile:staging` (or :dev). Only re-run `ios:mobile*` when
-# native code or any expo-*/react-native-* dependency changes (lockfile drift counts).
+# Mobile (Expo) — ARCHIVED / FROZEN. Not built, tested, or run in CI, and there are no
+# dev:mobile* / ios:mobile* scripts. Source is kept under apps/mobile/ for reference;
+# see apps/mobile/UNMAINTAINED.md. To un-archive, restore the scripts + the
+# mobile-verify.yml triggers (both recoverable from git history).
 
 # Desktop build & package
 pnpm --filter @multica/desktop build      # Compile TS → JS (reads .env.production)
@@ -253,9 +248,9 @@ Web and desktop share the same CSS foundation from `packages/ui/styles/`.
 - **Shared styles** → `packages/ui/styles/`. Never duplicate scrollbar styling, keyframes, or base layer rules in app CSS.
 - **`@source` directives** → both apps scan shared packages so Tailwind sees all class names.
 
-## Mobile-specific Rules
+## Mobile-specific Rules (archived)
 
-Rules for `apps/mobile/` live in `apps/mobile/CLAUDE.md`. Read it before touching anything in `apps/mobile/` — it covers what may be imported from `@multica/core/`, the React version policy, the build/release pipeline, and the locked tech-stack baseline.
+The mobile app (`apps/mobile/`) is **archived / frozen** — see `apps/mobile/UNMAINTAINED.md`. It is not built, tested, or run in CI, and the `dev:mobile*` / `ios:mobile*` scripts have been removed from the root `package.json`. Source is kept in place as a historical reference and the archival is reversible. To un-archive: restore the mobile scripts in `package.json` and the `on:` triggers in `.github/workflows/mobile-verify.yml` (both recoverable from git history), then re-read `apps/mobile/CLAUDE.md` for the import whitelist (`import type` from `@multica/core/types/*` + pure functions only) and the locked tech-stack baseline.
 
 ## Desktop-specific Rules
 

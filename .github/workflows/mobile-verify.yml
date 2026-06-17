@@ -17,27 +17,11 @@ name: Mobile Verify
 # tests under apps/mobile/lib/*.test.ts — see apps/mobile/vitest.config.ts).
 # RN component-level rendering is not exercised here.
 
+# ARCHIVED: the mobile app is frozen (see apps/mobile/UNMAINTAINED.md).
+# Auto-triggers removed so pushes/PRs no longer run mobile CI. To un-archive,
+# restore the `on:` push/pull_request block below from git history.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "apps/mobile/**"
-      - "packages/core/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "turbo.json"
-      - ".github/workflows/mobile-verify.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "apps/mobile/**"
-      - "packages/core/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "turbo.json"
-      - ".github/workflows/mobile-verify.yml"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
