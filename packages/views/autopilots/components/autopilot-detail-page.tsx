@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  Zap, Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
+  Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
   Ban, ChevronDown, ChevronRight,
   Webhook, Copy, Check, RotateCw,
 } from "lucide-react";
@@ -278,7 +278,6 @@ function TriggerRow({ trigger, autopilotId }: { trigger: AutopilotTrigger; autop
   };
 
   const isWebhook = trigger.kind === "webhook";
-  const isApi = trigger.kind === "api";
   // Resolve the URL from the server's webhook_url first, then compose
   // from the API base URL (desktop) or window.origin (web). Falls back
   // to the relative path if neither is available.
@@ -315,7 +314,7 @@ function TriggerRow({ trigger, autopilotId }: { trigger: AutopilotTrigger; autop
     }
   };
 
-  const Icon = isWebhook ? Webhook : isApi ? Zap : Clock;
+  const Icon = isWebhook ? Webhook : Clock;
   const showWebhookUrlRow = isWebhook && webhookUrl;
 
   // Delete control extracted so a webhook trigger can render it inline
@@ -348,11 +347,6 @@ function TriggerRow({ trigger, autopilotId }: { trigger: AutopilotTrigger; autop
           {!trigger.enabled && (
             <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
               {t(($) => $.trigger_row.disabled_badge)}
-            </span>
-          )}
-          {isApi && (
-            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-              {t(($) => $.trigger_row.deprecated_badge)}
             </span>
           )}
         </div>

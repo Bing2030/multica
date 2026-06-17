@@ -300,7 +300,7 @@ function TriggerCell({ autopilot }: { autopilot: Autopilot }) {
         // Server-driven enum: unknown kinds get a generic icon + raw label.
         const Icon = TRIGGER_ICONS[kind] ?? Zap;
         const label =
-          kind === "schedule" || kind === "webhook" || kind === "api"
+          kind === "schedule" || kind === "webhook"
             ? t(($) => $.trigger_kind[kind])
             : kind;
         return (

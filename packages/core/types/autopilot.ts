@@ -8,7 +8,7 @@ export type AutopilotExecutionMode = "create_issue" | "run_only";
 // Path A). Older servers omit this field — callers should default to "agent".
 export type AutopilotAssigneeType = "agent" | "squad";
 
-export type AutopilotTriggerKind = "schedule" | "webhook" | "api";
+export type AutopilotTriggerKind = "schedule" | "webhook";
 
 // `skipped` is emitted by the backend pre-flight admission check
 // (assignee runtime offline at dispatch time, MUL-1899). The frontend MUST

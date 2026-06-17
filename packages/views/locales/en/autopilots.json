@@ -133,12 +133,10 @@
   },
   "trigger_kind": {
     "schedule": "Schedule",
-    "webhook": "Webhook",
-    "api": "API"
+    "webhook": "Webhook"
   },
   "trigger_row": {
     "disabled_badge": "Disabled",
-    "deprecated_badge": "Deprecated",
     "next_label": "Next: {{date}}",
     "webhook_url_label": "Webhook URL",
     "copy_url": "Copy URL",
