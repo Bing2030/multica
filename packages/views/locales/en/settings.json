@@ -26,7 +26,6 @@
       "repositories": "Repositories",
       "github": "GitHub",
       "integrations": "Integrations",
-      "labs": "Labs",
       "members": "Members"
     }
   },
@@ -168,11 +167,6 @@
     "cancel": "Cancel",
     "confirm": "Delete workspace",
     "deleting": "Deleting..."
-  },
-  "labs": {
-    "section_placeholder_title": "No experiments yet",
-    "section_placeholder_description": "Experimental settings will land here as they ship. Today this tab is intentionally empty.",
-    "toast_failed": "Failed to update setting"
   },
   "github": {
     "page_description": "Connect a GitHub App, control how Pull Requests show up inside Multica, and decide what your agents leave behind in commit history.",
