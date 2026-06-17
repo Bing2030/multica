@@ -767,22 +767,59 @@ func writeMcpConfigToTemp(raw json.RawMessage) (string, error) {
 // opts.SettingsPath so a misconfigured path fails the task with a clear error
 // instead of silently launching the agent with default settings — the user
 // pinned a path expecting it to apply, so silently ignoring it is worse than
-// failing. Returns the whitespace-trimmed path on success, or "" for empty
-// input (no override). os.Stat is sufficient: existence + not-a-directory is
-// the precondition; actual read permission is enforced when the CLI opens it.
+// failing. Returns the resolved (tilde-expanded) path on success, or "" for
+// empty input (no override). os.Stat is sufficient: existence +
+// not-a-directory is the precondition; actual read permission is enforced
+// when the CLI opens it.
+//
+// A leading "~" is expanded to the daemon user's home directory because Go's
+// os.Stat (and the spawned CLIs' file reads) do NOT perform shell-style
+// tilde expansion — without this, a path typed as "~/.claude/..." would be
+// looked up literally under a directory named "~" and fail with a misleading
+// "no such file or directory". settings_path is only supported for local
+// runtimes, where the daemon runs as the desktop user, so the daemon's home
+// is the user's home. The expanded absolute path is returned so the CLI
+// receives an unambiguous location.
 func validateSettingsPath(path string) (string, error) {
-	cleaned := strings.TrimSpace(path)
-	if cleaned == "" {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
 		return "", nil
 	}
-	info, err := os.Stat(cleaned)
+	resolved, err := expandSettingsPath(trimmed)
 	if err != nil {
-		return "", fmt.Errorf("settings file not accessible %q: %w", cleaned, err)
+		return "", err
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("settings file not accessible %q: %w", resolved, err)
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("settings path %q is a directory, expected a file", cleaned)
+		return "", fmt.Errorf("settings path %q is a directory, expected a file", resolved)
 	}
-	return cleaned, nil
+	return resolved, nil
+}
+
+// expandSettingsPath resolves a leading "~" to the daemon user's home
+// directory. "~" becomes the home dir; "~/x" becomes home + "/x". Paths that
+// do not start with "~" (absolute paths, relative paths, "~otheruser") are
+// returned unchanged. Returns an error only when a "~"-prefixed path is
+// given but the home directory cannot be resolved.
+func expandSettingsPath(path string) (string, error) {
+	if path == "~" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve ~ (home directory unavailable): %w", err)
+		}
+		return home, nil
+	}
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve ~ (home directory unavailable): %w", err)
+		}
+		return home + path[1:], nil
+	}
+	return path, nil
 }
 
 func detectCLIVersion(ctx context.Context, execPath string) (string, error) {

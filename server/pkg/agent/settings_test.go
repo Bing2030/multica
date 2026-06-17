@@ -35,11 +35,69 @@ func TestValidateSettingsPath(t *testing.T) {
 		{name: "valid file returns trimmed path", in: " " + existing + " ", want: existing},
 		{name: "missing file errors", in: filepath.Join(dir, "nope.json"), wantErr: "settings file not accessible"},
 		{name: "directory errors", in: dir, wantErr: "is a directory"},
+		{name: "non-tilde relative path passed through", in: "relative/settings.json", wantErr: "settings file not accessible"},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			got, err := validateSettingsPath(tc.in)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil (path=%q)", tc.wantErr, got)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %q", tc.wantErr, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestValidateSettingsPathExpandsTilde asserts a leading "~" is resolved to
+// the daemon user's home directory before stat, so a path typed as
+// "~/.claude/settings.json" actually checks the file under $HOME instead of a
+// literal "~" directory. Cannot run in parallel: it overrides $HOME, which
+// os.UserHomeDir reads on Unix and which would leak into concurrent tests.
+func TestValidateSettingsPathExpandsTilde(t *testing.T) {
+	home := t.TempDir()
+	settingsFile := filepath.Join(home, "settings.json")
+	if err := os.WriteFile(settingsFile, []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(home, "subdir"), 0o750); err != nil {
+		t.Fatalf("mkdir fixture: %v", err)
+	}
+
+	// Windows does not use "~" the way Unix shells do and os.UserHomeDir
+	// reads %USERPROFILE% rather than $HOME; skip the ~ semantics there.
+	if runtime.GOOS == "windows" {
+		t.Skip("~ expansion is a Unix home-directory convention")
+	}
+	t.Setenv("HOME", home)
+
+	cases := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr string
+	}{
+		{name: "tilde slash expands to home", in: "~/settings.json", want: settingsFile},
+		{name: "bare tilde expands to home dir itself", in: "~", wantErr: "is a directory"},
+		{name: "tilde slash with whitespace trimmed", in: "  ~/settings.json  ", want: settingsFile},
+		{name: "missing file under home errors with expanded path", in: "~/nope.json", wantErr: "settings file not accessible"},
+		{name: "directory under home errors", in: "~/subdir", wantErr: "is a directory"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
 			got, err := validateSettingsPath(tc.in)
 			if tc.wantErr != "" {
 				if err == nil {
