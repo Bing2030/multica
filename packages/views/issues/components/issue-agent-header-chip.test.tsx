@@ -145,16 +145,6 @@ describe("IssueAgentHeaderChip", () => {
     expect(mockState.taskMessagesOptions).not.toHaveBeenCalled();
   });
 
-  it("uses the requested Chinese single-agent copy", () => {
-    mockState.snapshot = [makeTask({})];
-
-    renderWithI18n(<IssueAgentHeaderChip issueId="issue-1" />, {
-      locale: "zh-Hans",
-    });
-
-    expect(screen.getByText("Walt 在工作")).toBeInTheDocument();
-  });
-
   it("does not render for inactive or unrelated tasks", () => {
     mockState.snapshot = [
       makeTask({

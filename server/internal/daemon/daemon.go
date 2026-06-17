@@ -2948,9 +2948,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	var customArgs []string
 	extraArgs := defaultArgsForProvider(d.cfg, provider)
 	var mcpConfig json.RawMessage
+	var settingsPath string
 	if task.Agent != nil {
 		customArgs = task.Agent.CustomArgs
 		mcpConfig = task.Agent.McpConfig
+		settingsPath = task.Agent.SettingsPath
 	}
 	// Two-tier model resolution: an explicit agent.model wins,
 	// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var. If
@@ -3011,6 +3013,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		CustomArgs:                customArgs,
 		McpConfig:                 mcpConfig,
 		ThinkingLevel:             thinkingLevel,
+		SettingsPath:              settingsPath,
 		OpenclawMode:              openclawMode,
 	}
 	// Some providers do not reliably load the per-task runtime config files we

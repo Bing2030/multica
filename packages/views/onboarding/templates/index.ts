@@ -1,8 +1,3 @@
-import {
-  matchLocale,
-  type SupportedLocale,
-} from "@multica/core/i18n";
-
 export {
   HELPER_INSTRUCTIONS,
   HELPER_DESCRIPTION,
@@ -28,22 +23,14 @@ export {
   type QuestionnaireRaw,
 } from "./user-context";
 
-type ContentLang = "en" | "zh" | "ko" | "ja";
-
-const CONTENT_LANG_BY_LOCALE: Record<SupportedLocale, ContentLang> = {
-  en: "en",
-  "zh-Hans": "zh",
-  ko: "ko",
-  ja: "ja",
-};
+type ContentLang = "en";
 
 /**
- * Pick persisted onboarding content for the given user language. Maps
- * supported BCP-47 prefixes to the matching variant; everything else falls
- * back to English. Mirrors the locale picker used by the frontend i18n layer.
+ * Pick persisted onboarding content for the given user language.
+ * English is the only supported language.
  */
 export function pickContentLang(
-  language: string | null | undefined,
+  _language: string | null | undefined,
 ): ContentLang {
-  return CONTENT_LANG_BY_LOCALE[matchLocale(language ? [language] : [])];
+  return "en";
 }

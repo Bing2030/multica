@@ -1,26 +1,12 @@
-import { match } from "@formatjs/intl-localematcher";
-import {
-  DEFAULT_LOCALE,
-  SUPPORTED_LOCALES,
-  type LocaleAdapter,
-  type SupportedLocale,
-} from "./types";
+import { DEFAULT_LOCALE, type SupportedLocale } from "./types";
 
-export function matchLocale(candidates: string[]): SupportedLocale {
-  if (candidates.length === 0) return DEFAULT_LOCALE;
-  try {
-    return match(
-      candidates,
-      SUPPORTED_LOCALES,
-      DEFAULT_LOCALE,
-    ) as SupportedLocale;
-  } catch {
-    return DEFAULT_LOCALE;
-  }
+// With English as the only supported locale, locale resolution is trivial.
+// These functions exist for API compatibility with existing callers.
+
+export function matchLocale(_candidates: string[]): SupportedLocale {
+  return DEFAULT_LOCALE;
 }
 
-export function pickLocale(adapter: LocaleAdapter): SupportedLocale {
-  const choice = adapter.getUserChoice();
-  if (choice) return matchLocale([choice]);
-  return matchLocale(adapter.getSystemPreferences());
+export function pickLocale(): SupportedLocale {
+  return DEFAULT_LOCALE;
 }

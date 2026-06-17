@@ -4,7 +4,7 @@ import Image from "next/image";
 import { LandingHeader } from "@/features/landing/components/landing-header";
 import { LandingFooter } from "@/features/landing/components/landing-footer";
 import { getUseCasePagesForLocale } from "@/lib/use-cases-source";
-import { getUseCaseLocale, useCaseText } from "@/lib/use-cases-i18n";
+import { USE_CASE_TEXT_EN } from "@/lib/use-cases-i18n";
 
 type ExtraFrontmatter = {
   category?: string;
@@ -12,9 +12,10 @@ type ExtraFrontmatter = {
   hero_image?: string;
 };
 
+// English is the only supported locale - use the constant directly.
+const text = USE_CASE_TEXT_EN!;
+
 export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getUseCaseLocale();
-  const text = useCaseText[locale];
   return {
     title: text.indexMetadataTitle,
     description: text.indexMetadataDescription,
@@ -30,9 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function UseCasesIndexPage() {
-  const locale = await getUseCaseLocale();
-  const text = useCaseText[locale];
-  const pages = getUseCasePagesForLocale(locale)
+  const pages = getUseCasePagesForLocale()
     .slice()
     .sort((a, b) => {
       // Sort descending by updated_at. Missing dates fall to the bottom by

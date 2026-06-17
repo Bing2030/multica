@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
-import { cn } from "@multica/ui/lib/utils";
 import { useAuthStore } from "@multica/core/auth";
 import { captureDownloadIntent } from "@multica/core/analytics";
 import { XMark, GitHubMark, githubUrl, twitterUrl } from "./shared";
-import { useLocale, locales, localeLabels } from "../i18n";
+import { useLocale } from "../i18n";
 
 export function LandingFooter() {
-  const { t, locale, setLocale } = useLocale();
+  const { t } = useLocale();
   const user = useAuthStore((s) => s.user);
   const groups = Object.values(t.footer.groups);
 
@@ -89,32 +88,14 @@ export function LandingFooter() {
           </div>
         </div>
 
-        {/* Bottom: copyright + language switcher */}
-        <div className="flex items-center justify-between py-6">
+        {/* Bottom: copyright */}
+        <div className="flex items-center py-6">
           <p className="text-[13px] text-white/36">
             {t.footer.copyright.replace(
               "{year}",
               String(new Date().getFullYear()),
             )}
           </p>
-          <div className="flex items-center">
-            {locales.map((l, i) => (
-              <button
-                type="button"
-                key={l}
-                onClick={() => setLocale(l)}
-                className={cn(
-                  "px-1.5 py-1 text-[12px] font-medium transition-colors",
-                  l === locale
-                    ? "text-white/70"
-                    : "text-white/30 hover:text-white/50",
-                  i > 0 && "border-l border-white/16",
-                )}
-              >
-                {localeLabels[l]}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Giant logo */}

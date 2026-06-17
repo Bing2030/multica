@@ -127,6 +127,10 @@ type AgentData struct {
 	McpConfig     json.RawMessage   `json:"mcp_config,omitempty"`
 	Model         string            `json:"model,omitempty"`
 	ThinkingLevel string            `json:"thinking_level,omitempty"`
+	// SettingsPath is the optional provider settings/config file path the
+	// daemon applies at launch (Claude → --settings, OpenCode →
+	// OPENCODE_CONFIG). Empty = no override (CLI default).
+	SettingsPath string `json:"settings_path,omitempty"`
 	// RuntimeConfig is the per-provider runtime_config JSON as stored on
 	// the agent record, forwarded verbatim by the claim endpoint. The
 	// daemon decodes provider-specific fields (e.g. openclaw mode +

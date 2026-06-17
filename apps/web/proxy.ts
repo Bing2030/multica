@@ -1,9 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { LOCALE_COOKIE } from "@multica/core/i18n";
-import {
-  MULTICA_LOCALE_HEADER,
-  resolveLocaleFromSignals,
-} from "./lib/locale-routing";
+import { MULTICA_LOCALE_HEADER } from "./lib/locale-routing";
 
 // Old workspace-scoped route segments that existed before the URL refactor
 // (pre-#1131). Any URL with these as the FIRST segment is a legacy URL that
@@ -21,20 +17,13 @@ const LEGACY_ROUTE_SEGMENTS = new Set([
   "settings",
 ]);
 
-function resolveLocale(req: NextRequest): string {
-  return resolveLocaleFromSignals({
-    cookieLocale: req.cookies.get(LOCALE_COOKIE)?.value,
-    acceptLanguage: req.headers.get("accept-language"),
-  });
-}
-
 // Forward the resolved locale to RSC layouts via the `x-multica-locale`
 // request header. layout.tsx reads it through `await headers()`. The
 // `request: { headers }` form is what makes the header land on the upstream
 // request — without it the value would only sit on the response.
 function nextWithLocale(req: NextRequest): NextResponse {
   const headers = new Headers(req.headers);
-  headers.set(MULTICA_LOCALE_HEADER, resolveLocale(req));
+  headers.set(MULTICA_LOCALE_HEADER, "en");
   return NextResponse.next({ request: { headers } });
 }
 

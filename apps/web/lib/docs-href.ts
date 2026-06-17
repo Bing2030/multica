@@ -1,8 +1,6 @@
 import type { SupportedLocale } from "@multica/core/i18n";
 
-export function docsHrefForLocale(locale: SupportedLocale): string {
-  if (locale === "zh-Hans") return "/docs/zh";
-  if (locale === "ko") return "/docs/ko";
-  if (locale === "ja") return "/docs/ja";
+// English is the only supported locale, so docs are always at /docs.
+export function docsHrefForLocale(_locale: SupportedLocale): string {
   return "/docs";
 }
