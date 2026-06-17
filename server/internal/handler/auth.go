@@ -406,13 +406,6 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("failed to set auth cookies", "error", err)
 	}
 
-	// Set CloudFront signed cookies for CDN access.
-	if h.CFSigner != nil {
-		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(auth.AuthTokenTTL())) {
-			http.SetCookie(w, cookie)
-		}
-	}
-
 	slog.Info("user logged in", append(logger.RequestAttrs(r), "user_id", uuidToString(user.ID), "email", user.Email)...)
 	writeJSON(w, http.StatusOK, LoginResponse{
 		Token: tokenString,
@@ -599,12 +592,6 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	if err := auth.SetAuthCookies(w, tokenString); err != nil {
 		slog.Warn("failed to set auth cookies", "error", err)
-	}
-
-	if h.CFSigner != nil {
-		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(72 * time.Hour)) {
-			http.SetCookie(w, cookie)
-		}
 	}
 
 	slog.Info("user logged in via google", append(logger.RequestAttrs(r), "user_id", uuidToString(user.ID), "email", user.Email)...)

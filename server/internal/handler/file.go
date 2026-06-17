@@ -37,10 +37,9 @@ const defaultAttachmentDownloadURLTTL = 30 * time.Minute
 type attachmentDownloadMode string
 
 const (
-	attachmentDownloadModeAuto       attachmentDownloadMode = "auto"
-	attachmentDownloadModeCloudFront attachmentDownloadMode = "cloudfront"
-	attachmentDownloadModePresign    attachmentDownloadMode = "presign"
-	attachmentDownloadModeProxy      attachmentDownloadMode = "proxy"
+	attachmentDownloadModeAuto    attachmentDownloadMode = "auto"
+	attachmentDownloadModePresign attachmentDownloadMode = "presign"
+	attachmentDownloadModeProxy   attachmentDownloadMode = "proxy"
 )
 
 // maxPreviewTextSize caps the body the preview proxy will load into memory
@@ -111,9 +110,6 @@ func (h *Handler) attachmentToResponse(a db.Attachment) AttachmentResponse {
 		SizeBytes:    a.SizeBytes,
 		CreatedAt:    a.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
 	}
-	if h.CFSigner != nil {
-		resp.DownloadURL = h.CFSigner.SignedURL(a.Url, time.Now().Add(h.attachmentDownloadURLTTL()))
-	}
 	if a.IssueID.Valid {
 		s := uuidToString(a.IssueID)
 		resp.IssueID = &s
@@ -145,25 +141,20 @@ func attachmentDownloadPath(id string) string {
 //
 //  1. Persist `a.Url` only when the deployment has signaled the storage
 //     backend serves URLs publicly without per-request auth:
-//       - `Storage.CdnDomain()` is non-empty (operator configured a
-//         public-facing base URL — `S3_CDN_DOMAIN` for the S3 backend or
-//         `LOCAL_UPLOAD_BASE_URL` for LocalStorage), AND
-//       - `h.CFSigner` is nil (no per-request CloudFront signing — when
-//         signing is on, the same CDN domain serves PRIVATE content via
-//         time-bounded signed URLs and the raw `a.Url` is unauth-deny),
-//         AND
+//       - `Storage.CdnDomain()` is non-empty (operator configured
+//         `LOCAL_UPLOAD_BASE_URL`, so uploads are served from a known
+//         public host), AND
 //       - `a.Url` is itself an absolute http(s) URL with no signature
 //         query — defends against legacy rows backfilled while baseURL
 //         was unset, and against a freshly-signed `download_url` ever
 //         leaking into `a.Url` (the original MUL-3130 bug).
 //
-//  2. Every other shape — CloudFront-signed mode, S3 presign /proxy
-//     against a private bucket without a CDN domain, raw S3 / R2 /
-//     MinIO, LocalStorage with no `LOCAL_UPLOAD_BASE_URL` — uses the
-//     stable per-attachment endpoint that the server self-signs /
-//     proxies on every request, anchored on `MULTICA_PUBLIC_URL` so the
-//     persisted URL keeps working for clients that don't share the
-//     document origin (Desktop / mobile webview).
+//  2. Every other shape — LocalStorage with no `LOCAL_UPLOAD_BASE_URL`
+//     (site-relative `/uploads/...`), or a legacy private/signed URL —
+//     uses the stable per-attachment endpoint that the server proxies on
+//     every request, anchored on `MULTICA_PUBLIC_URL` so the persisted URL
+//     keeps working for clients that don't share the document origin
+//     (Desktop / mobile webview).
 //
 //  3. Last-resort fallback (no `MULTICA_PUBLIC_URL` configured): emit
 //     the site-relative path. Web's Next.js rewrite handles this; non-
@@ -189,15 +180,12 @@ func (h *Handler) buildMarkdownURL(a db.Attachment, id string) string {
 // fetch — the only case where it is safe to persist `a.Url` into a markdown
 // body that will outlive the current session.
 func (h *Handler) storageURLIsPubliclyReadable(rawURL string) bool {
-	if h.Storage == nil || h.CFSigner != nil {
-		// CFSigner != nil is per-request signing; the CDN domain serves
-		// private content via signed URLs and `a.Url` is the raw S3 URL.
+	if h.Storage == nil {
 		return false
 	}
 	if h.Storage.CdnDomain() == "" {
-		// No public-facing base URL configured — the storage's URL is
-		// the raw private object URL (S3 / R2 / MinIO) or a site-relative
-		// LocalStorage path that doesn't carry an origin.
+		// No public-facing base URL configured — the storage's URL is a
+		// site-relative LocalStorage path that doesn't carry an origin.
 		return false
 	}
 	return isDurablePublicURL(rawURL)
@@ -239,8 +227,6 @@ func normalizeAttachmentDownloadMode(raw string) (attachmentDownloadMode, bool) 
 	switch attachmentDownloadMode(strings.ToLower(strings.TrimSpace(raw))) {
 	case "", attachmentDownloadModeAuto:
 		return attachmentDownloadModeAuto, true
-	case attachmentDownloadModeCloudFront:
-		return attachmentDownloadModeCloudFront, true
 	case attachmentDownloadModePresign:
 		return attachmentDownloadModePresign, true
 	case attachmentDownloadModeProxy:
@@ -628,21 +614,6 @@ func (h *Handler) DownloadAttachment(w http.ResponseWriter, r *http.Request) {
 
 	key := h.Storage.KeyFromURL(att.Url)
 	switch h.resolveAttachmentDownloadMode(att.Url) {
-	case attachmentDownloadModeCloudFront:
-		if h.CFSigner == nil {
-			writeError(w, http.StatusInternalServerError, "cloudfront attachment downloads are not configured")
-			return
-		}
-		http.Redirect(
-			w,
-			r,
-			h.CFSigner.SignedURLWithContentDisposition(
-				att.Url,
-				storage.AttachmentContentDisposition(att.Filename),
-				time.Now().Add(h.attachmentDownloadURLTTL()),
-			),
-			http.StatusFound,
-		)
 	case attachmentDownloadModePresign:
 		presigner, ok := h.Storage.(storage.DownloadPresigner)
 		if !ok {
@@ -670,15 +641,10 @@ func (h *Handler) DownloadAttachment(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) resolveAttachmentDownloadMode(rawURL string) attachmentDownloadMode {
 	switch h.attachmentDownloadMode() {
-	case attachmentDownloadModeCloudFront:
-		return attachmentDownloadModeCloudFront
 	case attachmentDownloadModePresign:
 		return attachmentDownloadModePresign
 	case attachmentDownloadModeProxy:
 		return attachmentDownloadModeProxy
-	}
-	if h.CFSigner != nil {
-		return attachmentDownloadModeCloudFront
 	}
 	if shouldProxyAttachmentURL(rawURL) {
 		return attachmentDownloadModeProxy

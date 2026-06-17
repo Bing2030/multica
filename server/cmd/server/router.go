@@ -128,19 +128,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		daemonHub = daemonws.NewHub()
 	}
 
-	// Initialize storage with S3 as primary, fallback to local
-	var store storage.Storage
-	s3 := storage.NewS3StorageFromEnv()
-	if s3 != nil {
-		store = s3
-	} else {
-		local := storage.NewLocalStorageFromEnv()
-		if local != nil {
-			store = local
-		}
-	}
-
-	cfSigner := auth.NewCloudFrontSignerFromEnv()
+	// Local filesystem storage. Attachments are written under LOCAL_UPLOAD_DIR
+	// (default ./data/uploads) and served from /uploads/* below.
+	store := storage.NewLocalStorageFromEnv()
 
 	signupConfig := handler.Config{
 		AllowSignup:              os.Getenv("ALLOW_SIGNUP") != "false",
@@ -154,7 +144,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		AttachmentDownloadMode:   os.Getenv("ATTACHMENT_DOWNLOAD_MODE"),
 		AttachmentDownloadURLTTL: envDuration("ATTACHMENT_DOWNLOAD_URL_TTL", 30*time.Minute),
 	}
-	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
+	h := handler.New(queries, pool, hub, bus, emailSvc, store, analyticsClient, signupConfig, daemonHub)
 	h.Metrics = opts.BusinessMetrics
 	h.TaskService.Metrics = opts.BusinessMetrics
 	h.IssueService.Metrics = opts.BusinessMetrics
@@ -449,11 +439,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		realtime.HandleWebSocket(hub, mc, pr, slugResolver, w, r)
 	})
 
-	// Local file serving (when using local storage)
-	if local, ok := store.(*storage.LocalStorage); ok {
+	// Serve uploaded files from the local filesystem. NewLocalStorageFromEnv
+	// returns nil only when LOCAL_UPLOAD_DIR cannot be created — logged as an
+	// error at construction; in that state uploads are broken regardless.
+	if store != nil {
 		r.Get("/uploads/*", func(w http.ResponseWriter, r *http.Request) {
 			file := strings.TrimPrefix(r.URL.Path, "/uploads/")
-			local.ServeFile(w, r, file)
+			store.ServeFile(w, r, file)
 		})
 	}
 
@@ -527,7 +519,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// Protected API routes
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(queries, patCache, cloudPATVerifier))
-		r.Use(middleware.RefreshCloudFrontCookies(cfSigner))
+
 
 		// --- User-scoped routes (no workspace context required) ---
 		r.Get("/api/me", h.GetMe)
