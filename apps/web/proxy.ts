@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { MULTICA_LOCALE_HEADER } from "./lib/locale-routing";
 
 // Old workspace-scoped route segments that existed before the URL refactor
 // (pre-#1131). Any URL with these as the FIRST segment is a legacy URL that
@@ -16,16 +15,6 @@ const LEGACY_ROUTE_SEGMENTS = new Set([
   "skills",
   "settings",
 ]);
-
-// Forward the resolved locale to RSC layouts via the `x-multica-locale`
-// request header. layout.tsx reads it through `await headers()`. The
-// `request: { headers }` form is what makes the header land on the upstream
-// request — without it the value would only sit on the response.
-function nextWithLocale(req: NextRequest): NextResponse {
-  const headers = new Headers(req.headers);
-  headers.set(MULTICA_LOCALE_HEADER, "en");
-  return NextResponse.next({ request: { headers } });
-}
 
 // Next.js 16 renamed `middleware` → `proxy`. API surface (NextRequest /
 // NextResponse / cookies / matcher) is identical; the only behavioral
@@ -68,15 +57,14 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // --- Default: forward locale header to RSC, no redirect/rewrite ---
+  // --- Default: no redirect/rewrite ---
   // Covers logged-out root path, /login, /:slug/*, and everything else.
-  return nextWithLocale(req);
+  return NextResponse.next();
 }
 
 export const config = {
-  // i18n header must land on every page request, so we use the standard
-  // negative-lookahead pattern from Next's i18n guide: skip API routes
-  // (Go backend), Next internals, and any path with a file extension
-  // (favicons, sw.js, public/* assets).
+  // Run on every page request (legacy-URL + last-workspace redirects above),
+  // skipping API routes (Go backend), Next internals, and any path with a
+  // file extension (favicons, sw.js, public/* assets).
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.).*)"],
 };
