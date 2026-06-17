@@ -11,12 +11,10 @@ import "./globals.css";
 // plus a synthetic size-adjusted fallback face to prevent FOUT layout shift —
 // both are exposed under the `--font-inter` CSS variable.
 //
-// The full `--font-sans` stack (Inter + the per-locale CJK fallback chain) is
-// assembled in static CSS in ./globals.css, not here: it must be overridable per
-// `<html lang>` (Japanese Kanji are Han ideographs and need a Japanese-first CJK
-// stack), and a hashed family name can only be referenced from CSS via a variable.
-// Keeping the CJK chain in CSS also keeps it CSP-safe and in sync with the desktop
-// app, which defines the same chain in apps/desktop/src/renderer/src/globals.css.
+// The full `--font-sans` stack (Inter + the CJK fallback chain) is assembled in
+// static CSS in ./globals.css, not here: a hashed next/font family name can only
+// be referenced from CSS via a variable, and keeping the CJK chain in CSS keeps it
+// CSP-safe and in sync with the desktop app (apps/desktop/src/renderer/src/globals.css).
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
