@@ -1752,28 +1752,28 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/squads`);
     return parseWithFallback(raw, SquadListSchema, EMPTY_SQUAD_LIST, {
       endpoint: "GET /api/squads",
-    }) as Squad[];
+    });
   }
 
   async getSquad(id: string): Promise<Squad> {
     const raw = await this.fetch<unknown>(`/api/squads/${id}`);
     return parseWithFallback(raw, SquadSchema, EMPTY_SQUAD, {
       endpoint: "GET /api/squads/:id",
-    }) as Squad;
+    });
   }
 
   async createSquad(data: { name: string; description?: string; leader_id: string; avatar_url?: string }): Promise<Squad> {
     const raw = await this.fetch<unknown>("/api/squads", { method: "POST", body: JSON.stringify(data) });
     return parseWithFallback(raw, SquadSchema, EMPTY_SQUAD, {
       endpoint: "POST /api/squads",
-    }) as Squad;
+    });
   }
 
   async updateSquad(id: string, data: { name?: string; description?: string; instructions?: string; leader_id?: string; avatar_url?: string }): Promise<Squad> {
     const raw = await this.fetch<unknown>(`/api/squads/${id}`, { method: "PUT", body: JSON.stringify(data) });
     return parseWithFallback(raw, SquadSchema, EMPTY_SQUAD, {
       endpoint: "PUT /api/squads/:id",
-    }) as Squad;
+    });
   }
 
   async deleteSquad(id: string): Promise<void> {
@@ -1804,7 +1804,7 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/squads/${squadId}/members/status`);
     return parseWithFallback(raw, SquadMemberStatusListResponseSchema, EMPTY_SQUAD_MEMBER_STATUS_LIST, {
       endpoint: "GET /api/squads/:id/members/status",
-    }) as SquadMemberStatusListResponse;
+    });
   }
 
   // Autopilots
