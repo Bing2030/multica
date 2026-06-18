@@ -3,12 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -21,7 +16,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/multica-ai/multica/server/internal/auth"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -454,33 +448,7 @@ func newDownloadRouter() http.Handler {
 	return r
 }
 
-func testCloudFrontSigner(t *testing.T) *auth.CloudFrontSigner {
-	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate CloudFront test key: %v", err)
-	}
-	pemBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
-	t.Setenv("CLOUDFRONT_KEY_PAIR_ID", "KTEST")
-	t.Setenv("CLOUDFRONT_DOMAIN", "static.example.test")
-	t.Setenv("COOKIE_DOMAIN", ".example.test")
-	t.Setenv("CLOUDFRONT_PRIVATE_KEY", base64.StdEncoding.EncodeToString(pemBytes))
-	t.Setenv("CLOUDFRONT_PRIVATE_KEY_SECRET", "")
-	signer := auth.NewCloudFrontSignerFromEnv()
-	if signer == nil {
-		t.Fatal("expected CloudFront signer")
-	}
-	return signer
-}
-
-func TestAttachmentToResponse_NonCloudFrontUsesDownloadEndpoint(t *testing.T) {
-	origSigner := testHandler.CFSigner
-	testHandler.CFSigner = nil
-	t.Cleanup(func() { testHandler.CFSigner = origSigner })
-
+func TestAttachmentToResponse_UsesDownloadEndpoint(t *testing.T) {
 	id := seedAttachmentURL(t, "http://rustfs:9000/test-bucket/private.txt", "private.txt", "text/plain", 5)
 	att, err := testHandler.Queries.GetAttachment(context.Background(), db.GetAttachmentParams{
 		ID:          parseUUID(id),
@@ -499,52 +467,15 @@ func TestAttachmentToResponse_NonCloudFrontUsesDownloadEndpoint(t *testing.T) {
 	}
 }
 
-func TestDownloadAttachment_CloudFrontRedirectSignsAttachmentDisposition(t *testing.T) {
-	origStorage := testHandler.Storage
-	origCfg := testHandler.cfg
-	origSigner := testHandler.CFSigner
-	testHandler.Storage = &mockStorage{}
-	testHandler.cfg.AttachmentDownloadMode = "cloudfront"
-	testHandler.CFSigner = testCloudFrontSigner(t)
-	t.Cleanup(func() {
-		testHandler.Storage = origStorage
-		testHandler.cfg = origCfg
-		testHandler.CFSigner = origSigner
-	})
-
-	id := seedAttachmentURL(t, "https://static.example.test/downloads/cloudfront.md", "cloud front.md", "text/markdown", 10)
-
-	req, w := newDownloadRequest(t, id, testWorkspaceID)
-	testHandler.DownloadAttachment(w, req)
-
-	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302; body=%s", w.Code, w.Body.String())
-	}
-	loc := w.Header().Get("Location")
-	parsed, err := url.Parse(loc)
-	if err != nil {
-		t.Fatalf("parse Location: %v", err)
-	}
-	if got := parsed.Query().Get("response-content-disposition"); got != `attachment; filename="cloud front.md"` {
-		t.Fatalf("response-content-disposition = %q", got)
-	}
-	if got := parsed.Query().Get("Key-Pair-Id"); got != "KTEST" {
-		t.Fatalf("Key-Pair-Id = %q", got)
-	}
-}
-
 func TestDownloadAttachment_BareNavigationWithWorkspaceSlugQueryPassesMiddleware(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
 	origCfg := testHandler.cfg
-	origSigner := testHandler.CFSigner
 	testHandler.Storage = store
 	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	testHandler.CFSigner = nil
 	t.Cleanup(func() {
 		testHandler.Storage = origStorage
 		testHandler.cfg = origCfg
-		testHandler.CFSigner = origSigner
 	})
 
 	key := "downloads/bare-nav.txt"
@@ -579,14 +510,11 @@ func TestDownloadAttachment_BareNavigationServesMemberWithoutWorkspaceHeaders(t 
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
 	origCfg := testHandler.cfg
-	origSigner := testHandler.CFSigner
 	testHandler.Storage = store
 	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	testHandler.CFSigner = nil
 	t.Cleanup(func() {
 		testHandler.Storage = origStorage
 		testHandler.cfg = origCfg
-		testHandler.CFSigner = origSigner
 	})
 
 	key := "downloads/bare-nav.txt"
@@ -626,14 +554,11 @@ func TestDownloadAttachment_BareNavigationDeniesNonMemberWith404(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
 	origCfg := testHandler.cfg
-	origSigner := testHandler.CFSigner
 	testHandler.Storage = store
 	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	testHandler.CFSigner = nil
 	t.Cleanup(func() {
 		testHandler.Storage = origStorage
 		testHandler.cfg = origCfg
-		testHandler.CFSigner = origSigner
 	})
 
 	// Seed an attachment that lives in a workspace testUserID is NOT
@@ -681,14 +606,11 @@ func TestDownloadAttachment_AutoInternalEndpointProxies(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
 	origCfg := testHandler.cfg
-	origSigner := testHandler.CFSigner
 	testHandler.Storage = store
 	testHandler.cfg.AttachmentDownloadMode = "auto"
-	testHandler.CFSigner = nil
 	t.Cleanup(func() {
 		testHandler.Storage = origStorage
 		testHandler.cfg = origCfg
-		testHandler.CFSigner = origSigner
 	})
 
 	key := "downloads/proxy-private.txt"
@@ -726,14 +648,11 @@ func TestDownloadAttachment_AutoPublicEndpointPresigns(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
 	origCfg := testHandler.cfg
-	origSigner := testHandler.CFSigner
 	testHandler.Storage = store
 	testHandler.cfg.AttachmentDownloadMode = "auto"
-	testHandler.CFSigner = nil
 	t.Cleanup(func() {
 		testHandler.Storage = origStorage
 		testHandler.cfg = origCfg
-		testHandler.CFSigner = origSigner
 	})
 
 	key := "downloads/public-private.txt"
@@ -768,14 +687,11 @@ func TestDownloadAttachment_ExplicitProxyStreamsPublicEndpoint(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
 	origCfg := testHandler.cfg
-	origSigner := testHandler.CFSigner
 	testHandler.Storage = store
 	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	testHandler.CFSigner = nil
 	t.Cleanup(func() {
 		testHandler.Storage = origStorage
 		testHandler.cfg = origCfg
-		testHandler.CFSigner = origSigner
 	})
 
 	key := "downloads/forced-proxy.png"
@@ -977,27 +893,21 @@ func TestIsTextPreviewable(t *testing.T) {
 //
 //   - public CDN durable URL ............... reuse a.Url verbatim
 //   - LocalStorage with PublicURL set ....... reuse a.Url (already absolute)
-//   - CloudFront-signed mode ................ never reuse a.Url (raw S3),
-//                                              prefer absolute API endpoint
 //   - LocalStorage relative + PublicURL set . prefix to absolute API endpoint
 //   - PublicURL unset ....................... fall back to site-relative
 //                                              (web's Next rewrite handles it)
-//   - signed URL (CloudFront-signed leaked
-//     into a.Url somehow) ................... reject as durable, fall through
+//   - signed URL (leaked into a.Url somehow)  reject as durable, fall through
 //                                              to API endpoint to avoid
 //                                              re-opening MUL-3130
 
 func TestBuildMarkdownURL_PublicCdnAbsoluteURLReusedVerbatim(t *testing.T) {
 	origPublic := testHandler.cfg.PublicURL
-	origSigner := testHandler.CFSigner
 	origStorage := testHandler.Storage
 	t.Cleanup(func() {
 		testHandler.cfg.PublicURL = origPublic
-		testHandler.CFSigner = origSigner
 		testHandler.Storage = origStorage
 	})
 	testHandler.cfg.PublicURL = "https://api.multica.test"
-	testHandler.CFSigner = nil
 	// mockStorage.CdnDomain() returns "cdn.example.com" — that's the
 	// operator-set signal that the URL host serves content publicly
 	// without per-request auth. Without this, the new gate routes
@@ -1027,15 +937,12 @@ func TestBuildMarkdownURL_PublicCdnAbsoluteURLReusedVerbatim(t *testing.T) {
 // load directly".
 func TestBuildMarkdownURL_PrivateBucketWithoutCdnDomainRoutesThroughAPIEndpoint(t *testing.T) {
 	origPublic := testHandler.cfg.PublicURL
-	origSigner := testHandler.CFSigner
 	origStorage := testHandler.Storage
 	t.Cleanup(func() {
 		testHandler.cfg.PublicURL = origPublic
-		testHandler.CFSigner = origSigner
 		testHandler.Storage = origStorage
 	})
 	testHandler.cfg.PublicURL = "https://api.multica.test"
-	testHandler.CFSigner = nil
 	testHandler.Storage = &mockStorageNoCdn{}
 
 	id := seedAttachmentURL(t, "https://prod.s3.amazonaws.com/key.png", "key.png", "image/png", 1)
@@ -1054,48 +961,12 @@ func TestBuildMarkdownURL_PrivateBucketWithoutCdnDomainRoutesThroughAPIEndpoint(
 	}
 }
 
-func TestBuildMarkdownURL_CloudFrontSignedModeNeverPersistsRawStorageURL(t *testing.T) {
-	origPublic := testHandler.cfg.PublicURL
-	origSigner := testHandler.CFSigner
-	t.Cleanup(func() {
-		testHandler.cfg.PublicURL = origPublic
-		testHandler.CFSigner = origSigner
-	})
-	testHandler.cfg.PublicURL = "https://api.multica.test"
-	testHandler.CFSigner = testCloudFrontSigner(t)
-
-	// Raw S3 URL — private bucket, not loadable directly by clients.
-	id := seedAttachmentURL(t, "https://prod.s3.amazonaws.com/key.png", "key.png", "image/png", 1)
-	att, err := testHandler.Queries.GetAttachment(context.Background(), db.GetAttachmentParams{
-		ID:          parseUUID(id),
-		WorkspaceID: parseUUID(testWorkspaceID),
-	})
-	if err != nil {
-		t.Fatalf("GetAttachment: %v", err)
-	}
-
-	resp := testHandler.attachmentToResponse(att)
-	want := "https://api.multica.test/api/attachments/" + id + "/download"
-	if resp.MarkdownURL != want {
-		t.Fatalf("markdown_url = %q, want absolute API endpoint %q", resp.MarkdownURL, want)
-	}
-	// download_url is allowed to carry a TTL (CloudFront-signed); it's NOT
-	// what the client persists, but it IS what the renderer uses for this
-	// response. The two are intentionally distinct.
-	if resp.DownloadURL == resp.MarkdownURL {
-		t.Fatalf("download_url and markdown_url must differ in CloudFront-signed mode (got identical %q)", resp.DownloadURL)
-	}
-}
-
 func TestBuildMarkdownURL_RelativeStorageURLPrefixedWithPublicURL(t *testing.T) {
 	origPublic := testHandler.cfg.PublicURL
-	origSigner := testHandler.CFSigner
 	t.Cleanup(func() {
 		testHandler.cfg.PublicURL = origPublic
-		testHandler.CFSigner = origSigner
 	})
 	testHandler.cfg.PublicURL = "https://api.multica.test"
-	testHandler.CFSigner = nil
 
 	// LocalStorage without LOCAL_UPLOAD_BASE_URL stores a site-relative URL.
 	id := seedAttachmentURL(t, "/uploads/abc.png", "abc.png", "image/png", 1)
@@ -1116,13 +987,10 @@ func TestBuildMarkdownURL_RelativeStorageURLPrefixedWithPublicURL(t *testing.T) 
 
 func TestBuildMarkdownURL_PublicURLUnsetFallsBackToSiteRelative(t *testing.T) {
 	origPublic := testHandler.cfg.PublicURL
-	origSigner := testHandler.CFSigner
 	t.Cleanup(func() {
 		testHandler.cfg.PublicURL = origPublic
-		testHandler.CFSigner = origSigner
 	})
 	testHandler.cfg.PublicURL = ""
-	testHandler.CFSigner = nil
 
 	id := seedAttachmentURL(t, "/uploads/abc.png", "abc.png", "image/png", 1)
 	att, err := testHandler.Queries.GetAttachment(context.Background(), db.GetAttachmentParams{
@@ -1142,13 +1010,10 @@ func TestBuildMarkdownURL_PublicURLUnsetFallsBackToSiteRelative(t *testing.T) {
 
 func TestBuildMarkdownURL_StripsTrailingSlashOnPublicURL(t *testing.T) {
 	origPublic := testHandler.cfg.PublicURL
-	origSigner := testHandler.CFSigner
 	t.Cleanup(func() {
 		testHandler.cfg.PublicURL = origPublic
-		testHandler.CFSigner = origSigner
 	})
 	testHandler.cfg.PublicURL = "https://api.multica.test/"
-	testHandler.CFSigner = nil
 
 	id := seedAttachmentURL(t, "/uploads/abc.png", "abc.png", "image/png", 1)
 	att, err := testHandler.Queries.GetAttachment(context.Background(), db.GetAttachmentParams{

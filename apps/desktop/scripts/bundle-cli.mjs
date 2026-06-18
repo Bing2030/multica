@@ -101,7 +101,19 @@ async function exists(p) {
 }
 
 if (hasGo()) {
-  const version = sh("git describe --tags --always --dirty") || "dev";
+  // VERSION mirrors `git describe --tags --dirty` (no --always): a bare
+  // semver when HEAD is a tag, or the dev-past-tag shape `vX.Y.Z-N-gHASH
+  // [-dirty]` when past one. Both pass the quick-create CLI-version gate
+  // (server/pkg/agent/version.go devDescribeRe + packages/core/runtimes/
+  // cli-version.ts DEV_DESCRIBE_RE). A repo with no tags (e.g. a fork
+  // before its first release tag) makes plain `--always` fall back to the
+  // bare short SHA, which the gate rejects as "missing" — so when describe
+  // finds no tag we synthesize the dev-past-tag shape to keep dev builds
+  // unblocked. Mirrors the Makefile VERSION derivation.
+  let version = sh("git describe --tags --dirty");
+  if (!version) {
+    version = `v0.0.0-0-g${sh("git rev-parse --short HEAD") || "unknown"}`;
+  }
   const commit = sh("git rev-parse --short HEAD") || "unknown";
   const date = new Date().toISOString().replace(/\.\d+Z$/, "Z");
   const ldflags = `-X main.version=${version} -X main.commit=${commit} -X main.date=${date}`;

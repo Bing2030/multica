@@ -31,35 +31,6 @@ const (
 
 const EventSchemaVersion = 2
 
-// metricsOnlyEvents are operational / execution-lifecycle events that are
-// recorded to Prometheus (via metrics.IncForEvent, for Grafana) but are
-// deliberately NOT shipped to PostHog. They are high-volume runtime/autopilot
-// telemetry whose per-event PostHog ingestion cost is not justified — Grafana
-// already carries the equivalent counters. metrics.RecordEvent consults this
-// set and skips the PostHog Capture for these names while still incrementing
-// the counter. PostHog is reserved for user/product-behaviour events.
-//
-// Note: agent_task_* lifecycle events are also Prometheus-only, but their
-// Prometheus side is handled by typed BusinessMetrics.RecordTask* methods, so
-// they never build an analytics.Event in the first place and don't need an
-// entry here.
-var metricsOnlyEvents = map[string]struct{}{
-	EventRuntimeRegistered:     {},
-	EventRuntimeReady:          {},
-	EventRuntimeFailed:         {},
-	EventRuntimeOffline:        {},
-	EventAutopilotRunStarted:   {},
-	EventAutopilotRunCompleted: {},
-	EventAutopilotRunFailed:    {},
-}
-
-// IsMetricsOnly reports whether an event name is operational telemetry that
-// must be counted in Prometheus but not sent to PostHog. See metricsOnlyEvents.
-func IsMetricsOnly(name string) bool {
-	_, ok := metricsOnlyEvents[name]
-	return ok
-}
-
 const (
 	SourceOnboarding = "onboarding"
 	SourceManual     = "manual"

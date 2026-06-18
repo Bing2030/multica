@@ -232,7 +232,7 @@ func (h *Handler) CreateContactSales(w http.ResponseWriter, r *http.Request) {
 		formSource = "page"
 	}
 
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.ContactSalesSubmitted(
+	obsmetrics.RecordEvent(h.Metrics, analytics.ContactSalesSubmitted(
 		inquiryID,
 		companySize,
 		countryRegion,

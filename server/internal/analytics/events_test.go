@@ -23,25 +23,3 @@ func TestFailedEventsUseWillRetry(t *testing.T) {
 		t.Fatalf("autopilot failure should not emit recoverable")
 	}
 }
-
-func TestIsMetricsOnly(t *testing.T) {
-	// Operational / execution-lifecycle events are Prometheus-only and must
-	// not be shipped to PostHog.
-	for _, name := range []string{
-		EventRuntimeRegistered, EventRuntimeReady, EventRuntimeFailed, EventRuntimeOffline,
-		EventAutopilotRunStarted, EventAutopilotRunCompleted, EventAutopilotRunFailed,
-	} {
-		if !IsMetricsOnly(name) {
-			t.Errorf("IsMetricsOnly(%q) = false, want true (operational event must stay out of PostHog)", name)
-		}
-	}
-	// Product-behaviour events must still reach PostHog.
-	for _, name := range []string{
-		EventSignup, EventWorkspaceCreated, EventIssueCreated, EventIssueExecuted,
-		EventChatMessageSent, EventAgentCreated, EventAutopilotCreated,
-	} {
-		if IsMetricsOnly(name) {
-			t.Errorf("IsMetricsOnly(%q) = true, want false (product event must reach PostHog)", name)
-		}
-	}
-}

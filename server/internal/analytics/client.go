@@ -1,26 +1,17 @@
-// Package analytics ships product telemetry events to an external analytics
-// backend (PostHog). Events feed the acquisition → activation → expansion
-// funnel — see docs/analytics.md for the event contract.
+// Package analytics defines the product event model consumed by the
+// Prometheus metrics layer (see server/internal/metrics). Events describe
+// the acquisition → activation → expansion funnel and carry the join /
+// segmentation fields the Prometheus counters read.
 //
-// Design:
-//   - Capture is non-blocking. Request handlers must never wait on analytics
-//     network I/O, so we enqueue into a bounded channel and a background
-//     worker flushes to PostHog in batches.
-//   - When the queue is full events are dropped (and counted). A broken
-//     analytics backend must never degrade the product.
-//   - When POSTHOG_API_KEY is empty the package runs a no-op client, which
-//     keeps local dev and self-hosted instances friction-free.
+// The PostHog transport that previously shipped these events to an external
+// analytics backend has been removed; only the event definitions remain.
 package analytics
 
-import (
-	"log/slog"
-	"os"
-	"strings"
-	"time"
-)
+import "time"
 
-// Event is a single analytics capture. Fields mirror PostHog's /capture/ shape
-// but are framework-agnostic so alternate backends can plug in later.
+// Event is a single analytics capture. Fields mirror the historical PostHog
+// /capture/ shape but are framework-agnostic; the Prometheus dispatcher reads
+// Name and Properties.
 type Event struct {
 	// Name of the event (e.g. "signup", "workspace_created").
 	Name string
@@ -53,76 +44,3 @@ type Event struct {
 	// Timestamp is optional; when zero the client fills in time.Now().
 	Timestamp time.Time
 }
-
-// Client is the narrow surface the rest of the codebase depends on. Handlers
-// call Capture and move on; the implementation is responsible for buffering,
-// batching, and shipping.
-type Client interface {
-	Capture(e Event)
-	// Close drains pending events. Call once during graceful shutdown.
-	Close()
-}
-
-// NewFromEnv returns a Client configured from environment variables:
-//
-//   - POSTHOG_API_KEY: project API key. Empty → no-op client.
-//   - POSTHOG_HOST:    API host (default https://us.i.posthog.com).
-//   - ANALYTICS_ENVIRONMENT: production/staging/dev. Defaults from APP_ENV.
-//   - ANALYTICS_DISABLED: set to "true"/"1" to force a no-op client even
-//     when POSTHOG_API_KEY is set (useful for CI and self-hosted opt-out).
-func NewFromEnv() Client {
-	if isDisabled() {
-		slog.Info("analytics disabled via ANALYTICS_DISABLED")
-		return NoopClient{}
-	}
-	key := os.Getenv("POSTHOG_API_KEY")
-	if key == "" {
-		slog.Info("analytics: POSTHOG_API_KEY not set, using noop client")
-		return NoopClient{}
-	}
-	host := os.Getenv("POSTHOG_HOST")
-	if host == "" {
-		host = "https://us.i.posthog.com"
-	}
-	slog.Info("analytics: posthog client enabled", "host", host)
-	return NewPostHogClient(PostHogConfig{
-		APIKey:      key,
-		Host:        host,
-		Environment: EnvironmentFromEnv(),
-	})
-}
-
-func isDisabled() bool {
-	v := os.Getenv("ANALYTICS_DISABLED")
-	return v == "true" || v == "1"
-}
-
-func EnvironmentFromEnv() string {
-	if v := normalizeEnvironment(os.Getenv("ANALYTICS_ENVIRONMENT")); v != "" {
-		return v
-	}
-	if v := normalizeEnvironment(os.Getenv("APP_ENV")); v != "" {
-		return v
-	}
-	return "dev"
-}
-
-func normalizeEnvironment(v string) string {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "production", "prod":
-		return "production"
-	case "staging", "stage":
-		return "staging"
-	case "development", "dev", "test", "local":
-		return "dev"
-	default:
-		return ""
-	}
-}
-
-// NoopClient silently drops all events. Used in tests, in local dev when
-// POSTHOG_API_KEY is unset, and in self-hosted instances that opt out.
-type NoopClient struct{}
-
-func (NoopClient) Capture(Event) {}
-func (NoopClient) Close()        {}

@@ -803,13 +803,13 @@ func (s *AutopilotService) publishRunDone(workspaceID string, run db.AutopilotRu
 }
 
 func (s *AutopilotService) captureIssueCreatedFromAutopilot(ap db.Autopilot, run *db.AutopilotRun, issue db.Issue, leaderID pgtype.UUID) {
-	if s.TaskSvc == nil || s.TaskSvc.Analytics == nil {
+	if s.TaskSvc == nil {
 		return
 	}
 	// For PostHog the agent_id should be the agent that will actually run
 	// the work (the resolved leader for squad autopilots) so per-agent task
 	// counts line up with what daemons report.
-	obsmetrics.RecordEvent(s.TaskSvc.Analytics, s.TaskSvc.Metrics, analytics.IssueCreated(
+	obsmetrics.RecordEvent(s.TaskSvc.Metrics, analytics.IssueCreated(
 		autopilotActorID(ap),
 		util.UUIDToString(ap.WorkspaceID),
 		util.UUIDToString(issue.ID),
@@ -822,10 +822,10 @@ func (s *AutopilotService) captureIssueCreatedFromAutopilot(ap db.Autopilot, run
 }
 
 func (s *AutopilotService) captureAutopilotRunStarted(ap db.Autopilot, run db.AutopilotRun, triggerSource string) {
-	if s.TaskSvc == nil || s.TaskSvc.Analytics == nil {
+	if s.TaskSvc == nil {
 		return
 	}
-	obsmetrics.RecordEvent(s.TaskSvc.Analytics, s.TaskSvc.Metrics, analytics.AutopilotRunStarted(
+	obsmetrics.RecordEvent(s.TaskSvc.Metrics, analytics.AutopilotRunStarted(
 		autopilotActorID(ap),
 		util.UUIDToString(ap.WorkspaceID),
 		util.UUIDToString(ap.ID),
@@ -837,10 +837,10 @@ func (s *AutopilotService) captureAutopilotRunStarted(ap db.Autopilot, run db.Au
 }
 
 func (s *AutopilotService) captureAutopilotRunCompleted(ap db.Autopilot, run db.AutopilotRun) {
-	if s.TaskSvc == nil || s.TaskSvc.Analytics == nil {
+	if s.TaskSvc == nil {
 		return
 	}
-	obsmetrics.RecordEvent(s.TaskSvc.Analytics, s.TaskSvc.Metrics, analytics.AutopilotRunCompleted(
+	obsmetrics.RecordEvent(s.TaskSvc.Metrics, analytics.AutopilotRunCompleted(
 		autopilotActorID(ap),
 		util.UUIDToString(ap.WorkspaceID),
 		util.UUIDToString(ap.ID),
@@ -853,13 +853,13 @@ func (s *AutopilotService) captureAutopilotRunCompleted(ap db.Autopilot, run db.
 }
 
 func (s *AutopilotService) captureAutopilotRunFailed(ap db.Autopilot, run db.AutopilotRun, triggerSource, reason string) {
-	if s.TaskSvc == nil || s.TaskSvc.Analytics == nil {
+	if s.TaskSvc == nil {
 		return
 	}
 	if reason == "" {
 		reason = "unknown"
 	}
-	obsmetrics.RecordEvent(s.TaskSvc.Analytics, s.TaskSvc.Metrics, analytics.AutopilotRunFailed(
+	obsmetrics.RecordEvent(s.TaskSvc.Metrics, analytics.AutopilotRunFailed(
 		autopilotActorID(ap),
 		util.UUIDToString(ap.WorkspaceID),
 		util.UUIDToString(ap.ID),

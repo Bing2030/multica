@@ -5,11 +5,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// PR3: funnel / commercial / community counters paired with PostHog events.
+// PR3: funnel / commercial / community counters driven by analytics events.
 //
-// Every PostHog Capture(...) call site goes through metrics.RecordEvent(...)
-// (see event_recorder.go) so the two sides cannot drift. Lint test in
-// business_pairing_test.go enforces that.
+// Every emission goes through metrics.RecordEvent(...) so there is a single
+// dispatch site that cannot drift from the event definitions.
 
 // runtimeReadyBuckets covers cold-start runtime readiness from <1s to ~5min.
 // Most provider boots land in 5–60s; the long tail catches stuck pulls.
@@ -234,25 +233,13 @@ func (e *businessEventMetrics) collectors() []prometheus.Collector {
 	}
 }
 
-// RecordEvent enqueues a PostHog event AND increments the matching Prometheus
-// counter so the two cannot drift. Pass `client = nil` (no PostHog) or
-// `m = nil` (no metrics) safely; both sides are best-effort and never block
-// the request path.
-//
-// Operational / execution-lifecycle events flagged by analytics.IsMetricsOnly
-// (runtime_*, autopilot_run_*) still increment their Prometheus counter but are
-// NOT shipped to PostHog — Grafana already covers them and their high volume is
-// not worth the per-event PostHog ingestion cost. PostHog is reserved for
-// user/product-behaviour events.
+// RecordEvent dispatches an analytics event to the matching Prometheus
+// counter. Pass `m = nil` safely (no metrics listener configured); the
+// dispatch is best-effort and never blocks the request path.
 //
 // This is the canonical way to emit any of the funnel / community / commercial
-// PostHog events from server code. Direct analytics.Client.Capture(...) with
-// an event constructed from analytics.* is rejected by the lint test in
-// business_pairing_test.go.
-func RecordEvent(client analytics.Client, m *BusinessMetrics, ev analytics.Event) {
-	if client != nil && !analytics.IsMetricsOnly(ev.Name) {
-		client.Capture(ev)
-	}
+// events from server code.
+func RecordEvent(m *BusinessMetrics, ev analytics.Event) {
 	if m != nil {
 		m.IncForEvent(ev)
 	}

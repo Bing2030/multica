@@ -120,9 +120,9 @@ func sweepStaleRuntimes(ctx context.Context, queries *db.Queries, liveness handl
 		// SELECT and the UPDATE. Nothing to broadcast.
 		return
 	}
-	if taskSvc != nil && taskSvc.Analytics != nil {
+	if taskSvc != nil {
 		for _, row := range staleRows {
-			obsmetrics.RecordEvent(taskSvc.Analytics, taskSvc.Metrics, analytics.RuntimeOffline(
+			obsmetrics.RecordEvent(taskSvc.Metrics, analytics.RuntimeOffline(
 				util.UUIDToString(row.OwnerID),
 				util.UUIDToString(row.WorkspaceID),
 				util.UUIDToString(row.ID),

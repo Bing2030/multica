@@ -5,20 +5,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
-
-	"github.com/multica-ai/multica/server/internal/analytics"
 )
 
 type AppConfig struct {
 	CdnDomain string `json:"cdn_domain"`
-	// CdnSigned tells clients that the CDN domain above serves PRIVATE
-	// content through time-bounded signed URLs (CloudFront signing is
-	// enabled). When true, a raw storage URL on the CDN domain is NOT
-	// publicly fetchable — renderers must not pick it as a native
-	// <img>/<video> source and should fall back to the per-attachment
-	// API endpoint or a freshly signed download_url instead (MUL-3254).
-	// Omitted when false so older clients see the previous shape.
-	CdnSigned bool `json:"cdn_signed,omitempty"`
 	// Public auth config consumed by the web app at runtime so self-hosted
 	// deployments do not need to rebuild the frontend image when operators
 	// toggle signup or wire Google OAuth.
@@ -59,7 +49,6 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	if h.Storage != nil {
 		config.CdnDomain = h.Storage.CdnDomain()
 	}
-	config.CdnSigned = h.CFSigner != nil
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 
 	// Re-read from env on every request so operators can rotate keys via
@@ -67,7 +56,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	if v := os.Getenv("ANALYTICS_DISABLED"); v != "true" && v != "1" {
 		config.PosthogKey = os.Getenv("POSTHOG_API_KEY")
 		config.PosthogHost = os.Getenv("POSTHOG_HOST")
-		config.AnalyticsEnvironment = analytics.EnvironmentFromEnv()
+		config.AnalyticsEnvironment = analyticsEnvironmentFromEnv()
 		if config.PosthogHost == "" && config.PosthogKey != "" {
 			config.PosthogHost = "https://us.i.posthog.com"
 		}
@@ -136,4 +125,31 @@ func canonicalURLHost(raw string) string {
 		host = u.Hostname()
 	}
 	return strings.TrimSuffix(strings.ToLower(host), ".")
+}
+
+// analyticsEnvironmentFromEnv returns the analytics environment label the
+// frontend forwards to its own PostHog client (see /api/config consumers).
+// Falls back to "dev" when neither ANALYTICS_ENVIRONMENT nor APP_ENV names a
+// recognized tier.
+func analyticsEnvironmentFromEnv() string {
+	if v := normalizeAnalyticsEnvironment(os.Getenv("ANALYTICS_ENVIRONMENT")); v != "" {
+		return v
+	}
+	if v := normalizeAnalyticsEnvironment(os.Getenv("APP_ENV")); v != "" {
+		return v
+	}
+	return "dev"
+}
+
+func normalizeAnalyticsEnvironment(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "production", "prod":
+		return "production"
+	case "staging", "stage":
+		return "staging"
+	case "development", "dev", "test", "local":
+		return "dev"
+	default:
+		return ""
+	}
 }

@@ -270,7 +270,7 @@ func (h *Handler) CreateSquad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.publish(protocol.EventSquadCreated, workspaceID, "member", uuidToString(member.UserID), map[string]any{"squad": resp})
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.SquadCreated(
+	obsmetrics.RecordEvent(h.Metrics, analytics.SquadCreated(
 		uuidToString(member.UserID),
 		workspaceID,
 		uuidToString(squad.ID),
