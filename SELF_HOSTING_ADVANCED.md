@@ -84,21 +84,16 @@ Changes take effect after restarting the backend / compose stack. The web UI rea
 
 > Note: setting `ALLOW_SIGNUP=false` blocks **all** new account creation, including users who already have a pending invitation. If you need invited users to be able to sign up but not create their own workspaces, keep `ALLOW_SIGNUP=true` (optionally combined with `ALLOWED_EMAIL_DOMAINS` / `ALLOWED_EMAILS`) and only flip `DISABLE_WORKSPACE_CREATION=true`.
 
-### File Storage (Optional)
+### File Storage
 
-For file uploads and attachments, configure S3 and (optionally) CloudFront:
+Attachments are stored on the local filesystem — there is no S3/CloudFront
+backend. Uploads are written under `LOCAL_UPLOAD_DIR` (default
+`./data/uploads`) and served from `/uploads/*`.
 
 | Variable | Description |
 |----------|-------------|
-| `S3_BUCKET` | Bucket name only (e.g. `my-bucket`). Do **not** include the `.s3.<region>.amazonaws.com` suffix — the server constructs the public URL from `S3_BUCKET` + `S3_REGION` |
-| `S3_REGION` | AWS region (default: `us-west-2`). Must match the bucket's actual region — used for both SDK signing and public URLs |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Static credentials. When both are unset, the AWS SDK default credential chain is used |
-| `AWS_ENDPOINT_URL` | Custom S3-compatible endpoint (e.g. MinIO, R2, B2). Setting this switches to path-style URLs |
-| `ATTACHMENT_DOWNLOAD_MODE` | Attachment download behavior: `auto` (default), `cloudfront`, `presign`, or `proxy`. Use `proxy` for private buckets behind Docker/VPC-only endpoints such as `http://rustfs:9000` |
-| `ATTACHMENT_DOWNLOAD_URL_TTL` | TTL for CloudFront signed URLs and S3 presigned download URLs (default: `30m`) |
-| `CLOUDFRONT_DOMAIN` | CloudFront distribution domain — when set, public URLs use this host instead of the S3 host |
-| `CLOUDFRONT_KEY_PAIR_ID` | CloudFront key pair ID for signed URLs |
-| `CLOUDFRONT_PRIVATE_KEY` | CloudFront private key (PEM format) |
+| `LOCAL_UPLOAD_DIR` | Directory holding uploaded attachments (default `./data/uploads`). Must be writable by the backend process and, in Docker, backed by a persistent volume. |
+| `LOCAL_UPLOAD_BASE_URL` | Optional public base URL prefix for emitted attachment URLs. Leave empty for same-origin `/uploads/...` paths; set it when uploads are served from a different host (e.g. a static file server or CDN in front of the backend). |
 
 ### Cookies
 

@@ -1,8 +1,21 @@
 # Product Analytics
 
-This document is the source of truth for the analytics events Multica ships
-to PostHog. Events feed the acquisition → activation → expansion funnel that
+This document is the source of truth for the analytics events Multica
+captures. Events feed the acquisition → activation → expansion funnel that
 drives our weekly Active Workspaces (WAW) north-star metric.
+
+Events flow through **two independent paths**:
+
+- **Client-side (PostHog).** The web and desktop apps run `posthog-js` and
+  ship product / behaviour events (signup, onboarding, workspace_created, …)
+  directly to PostHog. The server never ships to PostHog — it only exposes
+  the project key / host to clients via `/api/config`.
+- **Server-side (Prometheus).** Handlers and services build typed
+  `analytics.Event` values and dispatch them through `metrics.RecordEvent`,
+  which increments the funnel / commercial / community counters in
+  `metrics/business_events.go`. The event definitions are retained solely
+  as the input model for these Prometheus counters; there is no server
+  PostHog transport.
 
 See [MUL-1122](https://github.com/multica-ai/multica) for the design context.
 
@@ -15,24 +28,25 @@ See [MUL-1122](https://github.com/multica-ai/multica) for the design context.
 > PostHog. Grafana already covers it and the per-event PostHog ingestion cost
 > (these events dominate volume and bill at the identified-event rate) is not
 > justified. The runtime/autopilot events are flagged by
-> `analytics.IsMetricsOnly`, which `metrics.RecordEvent` consults to skip the
-> PostHog `Capture` while still incrementing the Prometheus counter; the
+> `analytics.IsMetricsOnly`, which keeps them server-side (Prometheus counter
+> only) — no client-side PostHog capture is emitted for them. The
 > `agent_task_*` lifecycle is recorded straight to Prometheus via the typed
 > `BusinessMetrics.RecordTask*` methods and has no `analytics.Event` at all.
 
 ## Configuration
 
-All analytics shipping is toggled by environment variables (see `.env.example`):
+PostHog capture is configured by environment variables (see `.env.example`)
+that the server forwards to clients through `/api/config`:
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `POSTHOG_API_KEY` | PostHog project API key. Empty = no events are shipped. | `""` |
+| `POSTHOG_API_KEY` | PostHog project API key, forwarded to clients. Empty = no client-side capture. | `""` |
 | `POSTHOG_HOST` | PostHog host (US or EU cloud, or self-hosted URL). | `https://us.i.posthog.com` |
 | `ANALYTICS_ENVIRONMENT` | Optional override for the standard `environment` event property. Normalized to `production`, `staging`, or `dev`; defaults from `APP_ENV`. | `APP_ENV` / `dev` |
-| `ANALYTICS_DISABLED` | Set to `true`/`1` to force the no-op client even when `POSTHOG_API_KEY` is set. | `""` |
+| `ANALYTICS_DISABLED` | Set to `true`/`1` to suppress client-side capture even when `POSTHOG_API_KEY` is set (the server then omits the key from `/api/config`). | `""` |
 
 Local dev and self-hosted instances run with `POSTHOG_API_KEY=""`, so **no
-events leave the process unless the operator explicitly opts in**.
+events are captured unless the operator explicitly opts in**.
 
 ### Self-hosted instances
 
@@ -42,39 +56,31 @@ defaults guarantee this:
 
 - `.env.example` ships `POSTHOG_API_KEY=` empty. The Docker self-host
   compose does not set a default either.
-- With the key unset, `NewFromEnv` returns `NoopClient` and logs
-  `analytics: POSTHOG_API_KEY not set, using noop client` at startup — a
-  visible confirmation that nothing is shipped.
+- With the key unset, the server omits it from `/api/config`, so the client
+  never initializes `posthog-js` and ships nothing — no separate opt-out
+  plumbing required.
 - Operators who want their own analytics can set `POSTHOG_API_KEY` and
-  `POSTHOG_HOST` to point at their own PostHog project (Cloud or
-  self-hosted PostHog).
-- The frontend receives the key via `/api/config` (planned for PR 2), so
-  self-hosts' blank server config also disables frontend event shipping
-  automatically — no separate frontend opt-out plumbing required.
+  `POSTHOG_HOST` to point at their own PostHog project (Cloud or self-hosted
+  PostHog); the server forwards those to every client.
 
 ## Architecture
 
+Server-side, every emission goes through a single sink — there is no queue,
+batching, or background worker because nothing leaves the process:
+
 ```
-handler → analytics.Client.Capture(Event)   ← non-blocking, returns immediately
-                    │
-                    ▼
-           bounded queue (1024 events)
-                    │
-                    ▼
-     background worker: batch + POST /batch/
-                    │
-                    ▼
-                PostHog
+handler / service → obsmetrics.RecordEvent(BusinessMetrics, analytics.Event)
+                                  │
+                                  ▼
+              metrics.BusinessMetrics → Prometheus counters
 ```
 
-- `analytics.Capture` is **never allowed to block a request handler**. A
-  broken backend must not degrade the product — when the queue is full,
-  events are dropped and counted (visible via `slog` + the `dropped` counter
-  on shutdown).
-- Batches flush either when `BatchSize` is reached or every `FlushEvery`
-  (default 10 s), whichever comes first.
-- `Close()` drains remaining events during graceful shutdown. Called from
-  `server/cmd/server/main.go` via `defer`.
+- `RecordEvent` is nil-safe: when no `BusinessMetrics` receiver is wired
+  (tests, or a config that disables metrics), the call is a no-op and never
+  blocks the handler.
+- The counters are scraped by Prometheus and rendered in Grafana.
+
+Client-side capture lives in `packages/core/analytics/`.
 
 ## Identity model
 

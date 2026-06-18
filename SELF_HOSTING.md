@@ -144,7 +144,7 @@ If you already run a Kubernetes cluster, you can deploy Multica there instead of
 The chart creates the following resources in the target namespace:
 
 - `multica-postgres` — `pgvector/pgvector:pg17` backed by a 10Gi PVC
-- `multica-backend` — Go API/WS server. Backed by a 5Gi `ReadWriteOnce` uploads PVC by default; set `backend.uploads.persistence.enabled=false` when you have configured S3 (`backend.config.s3Bucket`) and don't want the chart to declare the PVC at all.
+- `multica-backend` — Go API/WS server. Backed by a 5Gi `ReadWriteOnce` uploads PVC by default; set `backend.uploads.persistence.enabled=false` only if you don't want the chart to declare the PVC at all.
 - `multica-frontend` — Next.js standalone server
 - Two `Ingress` resources: one for the web host, one for the backend host
 - `multica-config` ConfigMap (rendered from `values.yaml`)
@@ -187,7 +187,6 @@ kubectl -n multica create secret generic multica-secrets \
   --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 16)" \
   --from-literal=RESEND_API_KEY="" \
   --from-literal=GOOGLE_CLIENT_SECRET="" \
-  --from-literal=CLOUDFRONT_PRIVATE_KEY="" \
   --from-literal=MULTICA_DEV_VERIFICATION_CODE=""
 ```
 
