@@ -140,8 +140,6 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		TrustedProxies:           parseTrustedProxies(os.Getenv("MULTICA_TRUSTED_PROXIES")),
 		CloudRuntimeFleetURL:     cloudRuntimeFleetURLFromEnv(),
 		CloudRuntimeFleetTimeout: envDuration("MULTICA_CLOUD_FLEET_TIMEOUT", 35*time.Second),
-		AttachmentDownloadMode:   os.Getenv("ATTACHMENT_DOWNLOAD_MODE"),
-		AttachmentDownloadURLTTL: envDuration("ATTACHMENT_DOWNLOAD_URL_TTL", 30*time.Minute),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, signupConfig, daemonHub)
 	h.Metrics = opts.BusinessMetrics

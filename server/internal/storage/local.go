@@ -20,9 +20,9 @@ type LocalStorage struct {
 
 // metaSuffix is the on-disk extension for the sidecar JSON file that
 // captures an upload's original filename and sniffed content type. The
-// sidecar exists so ServeFile can set Content-Disposition the way S3's
-// PutObject path already does, instead of letting the browser fall back
-// to the storage-key basename for the download filename.
+// sidecar exists so ServeFile can set Content-Disposition from the
+// original filename, instead of letting the browser fall back to the
+// storage-key basename for the download filename.
 const metaSuffix = ".meta.json"
 
 type localMeta struct {
@@ -178,12 +178,12 @@ func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filenam
 	}
 	slog.Info("serving file", "filename", filename, "filepath", filePath)
 
-	// Mirror the S3 Upload path: when sidecar metadata exists for this key,
-	// set Content-Disposition with the original uploaded filename. Without
-	// it, browsers download the file under the storage-key basename (the
-	// UUID + extension) instead of the human-readable name the uploader
-	// chose. Uploads from before the sidecar landed have no .meta.json on
-	// disk and fall through to the existing behavior.
+	// When sidecar metadata exists for this key, set Content-Disposition
+	// with the original uploaded filename. Without it, browsers download
+	// the file under the storage-key basename (the UUID + extension)
+	// instead of the human-readable name the uploader chose. Uploads from
+	// before the sidecar landed have no .meta.json on disk and fall
+	// through to the existing behavior.
 	if meta, ok := readLocalMeta(filePath); ok && meta.Filename != "" {
 		w.Header().Set("Content-Disposition", ContentDisposition(meta.ContentType, meta.Filename))
 	}

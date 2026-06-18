@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -44,10 +43,8 @@ func createHandlerTestChatSession(t *testing.T, agentID string) string {
 // strips the synthetic CDN host so consumers can pass either the URL or the
 // raw key.
 type mockStorage struct {
-	mu                  sync.Mutex
-	files               map[string][]byte
-	presignCalls        []string
-	presignDispositions []string
+	mu    sync.Mutex
+	files map[string][]byte
 }
 
 func (m *mockStorage) Upload(_ context.Context, key string, data []byte, _ string, _ string) (string, error) {
@@ -95,30 +92,6 @@ func (m *mockStorage) GetReader(_ context.Context, key string) (io.ReadCloser, e
 		return io.NopCloser(bytes.NewReader(data)), nil
 	}
 	return nil, fmt.Errorf("mockStorage GetReader: key not found: %q", key)
-}
-func (m *mockStorage) PresignGet(_ context.Context, key string, _ time.Duration) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.presignCalls = append(m.presignCalls, key)
-	return "https://signed.example.com/" + key + "?X-Amz-Signature=mock", nil
-}
-func (m *mockStorage) PresignGetWithContentDisposition(_ context.Context, key string, _ time.Duration, contentDisposition string) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.presignCalls = append(m.presignCalls, key)
-	m.presignDispositions = append(m.presignDispositions, contentDisposition)
-	u := url.URL{
-		Scheme: "https",
-		Host:   "signed.example.com",
-		Path:   "/" + key,
-	}
-	q := u.Query()
-	q.Set("X-Amz-Signature", "mock")
-	if contentDisposition != "" {
-		q.Set("response-content-disposition", contentDisposition)
-	}
-	u.RawQuery = q.Encode()
-	return u.String(), nil
 }
 func (m *mockStorage) put(key string, data []byte) {
 	m.mu.Lock()
@@ -470,13 +443,8 @@ func TestAttachmentToResponse_UsesDownloadEndpoint(t *testing.T) {
 func TestDownloadAttachment_BareNavigationWithWorkspaceSlugQueryPassesMiddleware(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
-	origCfg := testHandler.cfg
 	testHandler.Storage = store
-	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	t.Cleanup(func() {
-		testHandler.Storage = origStorage
-		testHandler.cfg = origCfg
-	})
+	t.Cleanup(func() { testHandler.Storage = origStorage })
 
 	key := "downloads/bare-nav.txt"
 	body := []byte("download body")
@@ -509,13 +477,8 @@ func TestDownloadAttachment_BareNavigationWithWorkspaceSlugQueryPassesMiddleware
 func TestDownloadAttachment_BareNavigationServesMemberWithoutWorkspaceHeaders(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
-	origCfg := testHandler.cfg
 	testHandler.Storage = store
-	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	t.Cleanup(func() {
-		testHandler.Storage = origStorage
-		testHandler.cfg = origCfg
-	})
+	t.Cleanup(func() { testHandler.Storage = origStorage })
 
 	key := "downloads/bare-nav.txt"
 	body := []byte("download body")
@@ -553,13 +516,8 @@ func TestDownloadAttachment_BareNavigationDeniesNonMemberWith404(t *testing.T) {
 	}
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
-	origCfg := testHandler.cfg
 	testHandler.Storage = store
-	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	t.Cleanup(func() {
-		testHandler.Storage = origStorage
-		testHandler.cfg = origCfg
-	})
+	t.Cleanup(func() { testHandler.Storage = origStorage })
 
 	// Seed an attachment that lives in a workspace testUserID is NOT
 	// a member of. The workspace row has to exist so the FK on
@@ -602,16 +560,11 @@ func TestDownloadAttachment_BareNavigationDeniesNonMemberWith404(t *testing.T) {
 	}
 }
 
-func TestDownloadAttachment_AutoInternalEndpointProxies(t *testing.T) {
+func TestDownloadAttachment_ProxiesObject(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
-	origCfg := testHandler.cfg
 	testHandler.Storage = store
-	testHandler.cfg.AttachmentDownloadMode = "auto"
-	t.Cleanup(func() {
-		testHandler.Storage = origStorage
-		testHandler.cfg = origCfg
-	})
+	t.Cleanup(func() { testHandler.Storage = origStorage })
 
 	key := "downloads/proxy-private.txt"
 	body := []byte("private object")
@@ -637,62 +590,15 @@ func TestDownloadAttachment_AutoInternalEndpointProxies(t *testing.T) {
 		t.Fatalf("Cache-Control = %q, want no-store", got)
 	}
 	if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
-		t.Fatalf("X-Content-Type-Options = %q, want nosniff", got)
-	}
-	if len(store.presignCalls) != 0 {
-		t.Fatalf("internal endpoint should not presign, calls=%v", store.presignCalls)
+		t.Fatalf("X-Content-Type-Options = %q", got)
 	}
 }
 
-func TestDownloadAttachment_AutoPublicEndpointPresigns(t *testing.T) {
+func TestDownloadAttachment_ProxiesPublicEndpoint(t *testing.T) {
 	store := &mockStorage{}
 	origStorage := testHandler.Storage
-	origCfg := testHandler.cfg
 	testHandler.Storage = store
-	testHandler.cfg.AttachmentDownloadMode = "auto"
-	t.Cleanup(func() {
-		testHandler.Storage = origStorage
-		testHandler.cfg = origCfg
-	})
-
-	key := "downloads/public-private.txt"
-	id := seedAttachmentURL(t, "https://s3.example.com/test-bucket/"+key, "public.txt", "text/plain", 10)
-
-	req, w := newDownloadRequest(t, id, testWorkspaceID)
-	testHandler.DownloadAttachment(w, req)
-
-	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302; body=%s", w.Code, w.Body.String())
-	}
-	loc := w.Header().Get("Location")
-	if !strings.Contains(loc, "X-Amz-Signature=mock") {
-		t.Fatalf("Location = %q, want fake S3 signature", loc)
-	}
-	parsed, err := url.Parse(loc)
-	if err != nil {
-		t.Fatalf("parse Location: %v", err)
-	}
-	if got := parsed.Query().Get("response-content-disposition"); got != `attachment; filename="public.txt"` {
-		t.Fatalf("response-content-disposition = %q", got)
-	}
-	if len(store.presignCalls) != 1 || store.presignCalls[0] != key {
-		t.Fatalf("presign calls = %v, want [%s]", store.presignCalls, key)
-	}
-	if len(store.presignDispositions) != 1 || store.presignDispositions[0] != `attachment; filename="public.txt"` {
-		t.Fatalf("presign dispositions = %v", store.presignDispositions)
-	}
-}
-
-func TestDownloadAttachment_ExplicitProxyStreamsPublicEndpoint(t *testing.T) {
-	store := &mockStorage{}
-	origStorage := testHandler.Storage
-	origCfg := testHandler.cfg
-	testHandler.Storage = store
-	testHandler.cfg.AttachmentDownloadMode = "proxy"
-	t.Cleanup(func() {
-		testHandler.Storage = origStorage
-		testHandler.cfg = origCfg
-	})
+	t.Cleanup(func() { testHandler.Storage = origStorage })
 
 	key := "downloads/forced-proxy.png"
 	body := []byte("\x89PNG\r\n\x1a\nimage")
@@ -710,32 +616,6 @@ func TestDownloadAttachment_ExplicitProxyStreamsPublicEndpoint(t *testing.T) {
 	}
 	if got := w.Header().Get("Content-Disposition"); got != `inline; filename="image.png"` {
 		t.Fatalf("Content-Disposition = %q", got)
-	}
-	if len(store.presignCalls) != 0 {
-		t.Fatalf("forced proxy should not presign, calls=%v", store.presignCalls)
-	}
-}
-
-func TestShouldProxyAttachmentURL(t *testing.T) {
-	cases := []struct {
-		raw  string
-		want bool
-	}{
-		{"http://rustfs:9000/test-bucket/file.txt", true},
-		{"http://localhost:9000/test-bucket/file.txt", true},
-		{"http://127.0.0.1:9000/test-bucket/file.txt", true},
-		{"http://10.0.2.15/test-bucket/file.txt", true},
-		{"https://minio.internal/test-bucket/file.txt", true},
-		{"/uploads/workspaces/abc/file.txt", true},
-		{"https://s3.example.com/test-bucket/file.txt", false},
-		{"https://bucket.s3.us-east-1.amazonaws.com/file.txt", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.raw, func(t *testing.T) {
-			if got := shouldProxyAttachmentURL(tc.raw); got != tc.want {
-				t.Fatalf("shouldProxyAttachmentURL(%q) = %v, want %v", tc.raw, got, tc.want)
-			}
-		})
 	}
 }
 

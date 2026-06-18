@@ -6,11 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -31,16 +29,6 @@ var extContentTypes = map[string]string{
 }
 
 const maxUploadSize = 100 << 20 // 100 MB
-
-const defaultAttachmentDownloadURLTTL = 30 * time.Minute
-
-type attachmentDownloadMode string
-
-const (
-	attachmentDownloadModeAuto    attachmentDownloadMode = "auto"
-	attachmentDownloadModePresign attachmentDownloadMode = "presign"
-	attachmentDownloadModeProxy   attachmentDownloadMode = "proxy"
-)
 
 // maxPreviewTextSize caps the body the preview proxy will load into memory
 // for text-based types. Anything larger returns 413 and the UI falls back
@@ -75,10 +63,10 @@ type AttachmentResponse struct {
 	//
 	// Why a separate field from URL / DownloadURL:
 	//   - URL is the raw storage object URL — fine for avatar/logo
-	//     surfaces but may be private (S3 + CloudFront-signed mode) or
+	//     surfaces but may be private or
 	//     site-relative (LocalStorage with no base URL configured).
 	//   - DownloadURL is the URL the renderer uses for THIS response — it
-	//     can be a short-lived signed URL (CloudFront, S3 presign) and
+	//     can be non-durable (auth-gated or short-lived) and
 	//     therefore must NOT be persisted. It expires.
 	//   - MarkdownURL is contracted to be persistable: it never carries a
 	//     TTL, and on every supported deployment shape it is loadable as
@@ -141,13 +129,13 @@ func attachmentDownloadPath(id string) string {
 //
 //  1. Persist `a.Url` only when the deployment has signaled the storage
 //     backend serves URLs publicly without per-request auth:
-//       - `Storage.CdnDomain()` is non-empty (operator configured
-//         `LOCAL_UPLOAD_BASE_URL`, so uploads are served from a known
-//         public host), AND
-//       - `a.Url` is itself an absolute http(s) URL with no signature
-//         query — defends against legacy rows backfilled while baseURL
-//         was unset, and against a freshly-signed `download_url` ever
-//         leaking into `a.Url` (the original MUL-3130 bug).
+//     - `Storage.CdnDomain()` is non-empty (operator configured
+//     `LOCAL_UPLOAD_BASE_URL`, so uploads are served from a known
+//     public host), AND
+//     - `a.Url` is itself an absolute http(s) URL with no signature
+//     query — defends against legacy rows backfilled while baseURL
+//     was unset, and against a freshly-signed `download_url` ever
+//     leaking into `a.Url` (the original MUL-3130 bug).
 //
 //  2. Every other shape — LocalStorage with no `LOCAL_UPLOAD_BASE_URL`
 //     (site-relative `/uploads/...`), or a legacy private/signed URL —
@@ -193,7 +181,7 @@ func (h *Handler) storageURLIsPubliclyReadable(rawURL string) bool {
 
 // isDurablePublicURL is true when `rawURL` is an absolute http(s) URL that
 // is safe to persist into long-lived markdown bodies — i.e. it carries no
-// CloudFront / S3 signature query that would make it expire.
+// short-lived signature query that would make it expire.
 func isDurablePublicURL(rawURL string) bool {
 	if rawURL == "" {
 		return false
@@ -221,31 +209,6 @@ func isDurablePublicURL(rawURL string) bool {
 		}
 	}
 	return true
-}
-
-func normalizeAttachmentDownloadMode(raw string) (attachmentDownloadMode, bool) {
-	switch attachmentDownloadMode(strings.ToLower(strings.TrimSpace(raw))) {
-	case "", attachmentDownloadModeAuto:
-		return attachmentDownloadModeAuto, true
-	case attachmentDownloadModePresign:
-		return attachmentDownloadModePresign, true
-	case attachmentDownloadModeProxy:
-		return attachmentDownloadModeProxy, true
-	default:
-		return attachmentDownloadModeAuto, false
-	}
-}
-
-func (h *Handler) attachmentDownloadMode() attachmentDownloadMode {
-	mode, _ := normalizeAttachmentDownloadMode(h.cfg.AttachmentDownloadMode)
-	return mode
-}
-
-func (h *Handler) attachmentDownloadURLTTL() time.Duration {
-	if h.cfg.AttachmentDownloadURLTTL > 0 {
-		return h.cfg.AttachmentDownloadURLTTL
-	}
-	return defaultAttachmentDownloadURLTTL
 }
 
 // groupAttachments loads attachments for multiple comments and groups them by comment ID.
@@ -350,7 +313,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate a UUIDv7 to use as both the attachment ID and S3 key.
+	// Generate a UUIDv7 to use as both the attachment ID and storage key.
 	id, err := uuid.NewV7()
 	if err != nil {
 		slog.Error("failed to generate uuid", "error", err)
@@ -433,7 +396,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		att, err := h.Queries.CreateAttachment(r.Context(), params)
 		if err != nil {
 			slog.Error("failed to create attachment record", "error", err)
-			// S3 upload succeeded but DB record failed — still return the link
+			// Storage upload succeeded but DB record failed — still return the link
 			// so the file is usable. Log the error for investigation.
 		} else {
 			writeJSON(w, http.StatusOK, h.attachmentToResponse(att))
@@ -613,77 +576,7 @@ func (h *Handler) DownloadAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := h.Storage.KeyFromURL(att.Url)
-	switch h.resolveAttachmentDownloadMode(att.Url) {
-	case attachmentDownloadModePresign:
-		presigner, ok := h.Storage.(storage.DownloadPresigner)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "attachment storage does not support presigned downloads")
-			return
-		}
-		signedURL, err := presigner.PresignGetWithContentDisposition(
-			r.Context(),
-			key,
-			h.attachmentDownloadURLTTL(),
-			storage.AttachmentContentDisposition(att.Filename),
-		)
-		if err != nil {
-			slog.Error("failed to presign attachment download", "id", uuidToString(att.ID), "key", key, "error", err)
-			writeError(w, http.StatusBadGateway, "failed to create download URL")
-			return
-		}
-		http.Redirect(w, r, signedURL, http.StatusFound)
-	case attachmentDownloadModeProxy:
-		h.proxyAttachmentDownload(w, r, att, key)
-	default:
-		writeError(w, http.StatusInternalServerError, "invalid attachment download mode")
-	}
-}
-
-func (h *Handler) resolveAttachmentDownloadMode(rawURL string) attachmentDownloadMode {
-	switch h.attachmentDownloadMode() {
-	case attachmentDownloadModePresign:
-		return attachmentDownloadModePresign
-	case attachmentDownloadModeProxy:
-		return attachmentDownloadModeProxy
-	}
-	if shouldProxyAttachmentURL(rawURL) {
-		return attachmentDownloadModeProxy
-	}
-	if _, ok := h.Storage.(storage.DownloadPresigner); ok {
-		return attachmentDownloadModePresign
-	}
-	return attachmentDownloadModeProxy
-}
-
-func shouldProxyAttachmentURL(rawURL string) bool {
-	u, err := url.Parse(rawURL)
-	if err != nil || u.Hostname() == "" {
-		return true
-	}
-	host := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(u.Hostname()), "."))
-	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return true
-	}
-	if !strings.Contains(host, ".") {
-		return true
-	}
-	switch {
-	case strings.HasSuffix(host, ".local"),
-		strings.HasSuffix(host, ".localdomain"),
-		strings.HasSuffix(host, ".internal"),
-		strings.HasSuffix(host, ".lan"),
-		strings.HasSuffix(host, ".home"),
-		strings.HasSuffix(host, ".docker"):
-		return true
-	}
-	if addr, err := netip.ParseAddr(host); err == nil {
-		return addr.IsLoopback() ||
-			addr.IsPrivate() ||
-			addr.IsLinkLocalUnicast() ||
-			addr.IsLinkLocalMulticast() ||
-			addr.IsUnspecified()
-	}
-	return false
+	h.proxyAttachmentDownload(w, r, att, key)
 }
 
 func (h *Handler) proxyAttachmentDownload(w http.ResponseWriter, r *http.Request, att db.Attachment, key string) {
@@ -714,13 +607,13 @@ func (h *Handler) proxyAttachmentDownload(w http.ResponseWriter, r *http.Request
 // ---------------------------------------------------------------------------
 // GetAttachmentContent — GET /api/attachments/{id}/content
 //
-// Streams the raw bytes of a text-previewable attachment back to the client.
-// Exists to (a) bypass CloudFront CORS (not configured) and (b) bypass
-// Content-Disposition: attachment which Chromium honors for iframe document
-// loads. Media types (image/video/audio/pdf) intentionally use download_url
-// instead. Metadata download_url keeps CloudFront/S3's media preview behavior;
-// the explicit /download route signs redirects as attachment downloads and
-// proxy mode streams with the same media-type policy as storage uploads.
+// Streams the raw bytes of a text-previewable attachment back to the client
+// for inline preview (rendered in an iframe). Forces a text MIME type so the
+// browser renders rather than downloads, bypassing Content-Disposition:
+// attachment which Chromium honors for iframe document loads. Media types
+// (image/video/audio/pdf) intentionally use download_url instead; the
+// /download route streams them with the same media-type policy as storage
+// uploads.
 //
 // Hard cap: 2 MB. Larger files return 413. Anything outside the text
 // whitelist returns 415.
@@ -904,7 +797,7 @@ func (h *Handler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.deleteS3Object(r.Context(), att.Url)
+	h.deleteStorageObject(r.Context(), att.Url)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -936,16 +829,16 @@ func (h *Handler) linkAttachmentsByIDs(ctx context.Context, commentID, issueID p
 	}
 }
 
-// deleteS3Object removes a single file from S3 by its CDN URL.
-func (h *Handler) deleteS3Object(ctx context.Context, url string) {
+// deleteStorageObject removes a single uploaded file by its URL.
+func (h *Handler) deleteStorageObject(ctx context.Context, url string) {
 	if h.Storage == nil || url == "" {
 		return
 	}
 	h.Storage.Delete(ctx, h.Storage.KeyFromURL(url))
 }
 
-// deleteS3Objects removes multiple files from S3 by their CDN URLs.
-func (h *Handler) deleteS3Objects(ctx context.Context, urls []string) {
+// deleteStorageObjects removes multiple uploaded files by their URLs.
+func (h *Handler) deleteStorageObjects(ctx context.Context, urls []string) {
 	if h.Storage == nil || len(urls) == 0 {
 		return
 	}

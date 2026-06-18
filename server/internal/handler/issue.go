@@ -2773,7 +2773,7 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.deleteS3Objects(r.Context(), attachmentURLs)
+	h.deleteStorageObjects(r.Context(), attachmentURLs)
 	userID := requestUserID(r)
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
 	// Always emit the resolved UUID — frontend caches key by UUID, so an
@@ -3115,7 +3115,7 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 		h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
 		h.Queries.FailAutopilotRunsByIssue(r.Context(), issue.ID)
 
-		// Collect attachment URLs before CASCADE delete to clean up S3 objects.
+		// Collect attachment URLs before CASCADE delete to clean up stored files.
 		attachmentURLs, _ := h.Queries.ListAttachmentURLsByIssueOrComments(r.Context(), issue.ID)
 
 		if err := h.Queries.DeleteIssue(r.Context(), db.DeleteIssueParams{
@@ -3126,7 +3126,7 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		h.deleteS3Objects(r.Context(), attachmentURLs)
+		h.deleteStorageObjects(r.Context(), attachmentURLs)
 
 		// Always emit the resolved UUID — frontend caches key by UUID.
 		actorType, actorID := h.resolveActor(r, userID, workspaceID)

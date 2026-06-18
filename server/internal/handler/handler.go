@@ -81,8 +81,6 @@ type Config struct {
 	// return 503 instead of attempting to dial a hard-coded private service.
 	CloudRuntimeFleetURL     string
 	CloudRuntimeFleetTimeout time.Duration
-	AttachmentDownloadMode   string
-	AttachmentDownloadURLTTL time.Duration
 }
 
 type cloudRuntimeProxy interface {
@@ -159,16 +157,6 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	var executor dbExecutor
 	if candidate, ok := txStarter.(dbExecutor); ok {
 		executor = candidate
-	}
-
-	if mode, ok := normalizeAttachmentDownloadMode(cfg.AttachmentDownloadMode); ok {
-		cfg.AttachmentDownloadMode = string(mode)
-	} else {
-		slog.Warn("invalid ATTACHMENT_DOWNLOAD_MODE, using auto", "value", cfg.AttachmentDownloadMode)
-		cfg.AttachmentDownloadMode = string(attachmentDownloadModeAuto)
-	}
-	if cfg.AttachmentDownloadURLTTL <= 0 {
-		cfg.AttachmentDownloadURLTTL = defaultAttachmentDownloadURLTTL
 	}
 
 	var daemonHub *daemonws.Hub

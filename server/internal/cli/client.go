@@ -516,7 +516,7 @@ func (c *APIClient) UploadFileWithURL(ctx context.Context, fileData []byte, file
 		return "", "", fmt.Errorf("upload response missing attachment url")
 	}
 	// Allow empty ID: the server returns id="" in the fallback path where
-	// S3 upload succeeded but the attachment DB record failed. The file
+	// Storage upload succeeded but the attachment DB record failed. The file
 	// is still usable via its URL.
 	return result.ID, result.URL, nil
 }
@@ -525,7 +525,7 @@ func (c *APIClient) UploadFileWithURL(ctx context.Context, fileData []byte, file
 // This is used for downloading attachments via their signed download_url.
 // Downloads are limited to 100 MB to match the upload size limit.
 //
-// The URL may be absolute (a signed CloudFront/S3 URL) or relative
+// The URL may be absolute (a public storage URL) or relative
 // (a server-relative path like "/api/attachments/{id}/download" or
 // "/uploads/...") depending on how the
 // server is configured. Relative URLs are resolved against the client's
