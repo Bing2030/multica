@@ -283,7 +283,15 @@ cli: ## Run the multica CLI with ARGS or MULTICA_ARGS from source
 multica: ## Run the multica CLI entrypoint directly from the Go source tree
 	cd server && go run ./cmd/multica $(MULTICA_ARGS)
 
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# VERSION mirrors `git describe --tags --dirty`: a bare semver when HEAD is a
+# tag, or the dev-past-tag shape `vX.Y.Z-N-gHASH[-dirty]` when past one. Both
+# pass the quick-create CLI-version gate (server/pkg/agent/version.go
+# devDescribeRe + packages/core/runtimes/cli-version.ts DEV_DESCRIBE_RE). A
+# repo with no tags (e.g. a fork before its first release tag) makes plain
+# `git describe --tags --always` fall back to the bare short SHA, which the
+# gate rejects as "missing" — so when describe finds no tag we synthesize the
+# dev-past-tag shape to keep `make build` / `make daemon` unblocked.
+VERSION ?= $(shell git describe --tags --dirty 2>/dev/null || echo v0.0.0-0-g$$(git rev-parse --short HEAD 2>/dev/null || echo unknown))
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
