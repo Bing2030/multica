@@ -155,7 +155,7 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	h.publish(protocol.EventInvitationCreated, uuidToString(requester.WorkspaceID), "member", userID, eventPayload)
 
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.TeamInviteSent(
+	obsmetrics.RecordEvent(h.Metrics, analytics.TeamInviteSent(
 		uuidToString(requester.UserID),
 		uuidToString(requester.WorkspaceID),
 		email,
@@ -473,7 +473,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if inv.CreatedAt.Valid {
 		daysSinceInvite = int64(time.Since(inv.CreatedAt.Time).Hours() / 24)
 	}
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.TeamInviteAccepted(
+	obsmetrics.RecordEvent(h.Metrics, analytics.TeamInviteAccepted(
 		userID,
 		wsID,
 		daysSinceInvite,
@@ -483,7 +483,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		if onboardedUser.OnboardedAt.Valid {
 			onboardedAt = onboardedUser.OnboardedAt.Time.UTC().Format("2006-01-02T15:04:05Z07:00")
 		}
-		obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.OnboardingCompleted(
+		obsmetrics.RecordEvent(h.Metrics, analytics.OnboardingCompleted(
 			userID,
 			wsID,
 			analytics.OnboardingPathInviteAccept,

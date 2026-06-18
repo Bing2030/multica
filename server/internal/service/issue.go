@@ -27,21 +27,19 @@ type IssueService struct {
 	Queries   *db.Queries
 	TxStarter TxStarter
 	Bus       *events.Bus
-	Analytics analytics.Client
 	// Metrics is the shared business-metrics collector. Wired by
 	// cmd/server/router.go after construction; nil in tests / self-hosted
 	// without the metrics listener — obsmetrics.RecordEvent treats a nil
-	// Metrics as "PostHog only", so leaving it unset is safe.
+	// Metrics as a no-op, so leaving it unset is safe.
 	Metrics     *obsmetrics.BusinessMetrics
 	TaskService *TaskService
 }
 
-func NewIssueService(q *db.Queries, tx TxStarter, bus *events.Bus, ac analytics.Client, ts *TaskService) *IssueService {
+func NewIssueService(q *db.Queries, tx TxStarter, bus *events.Bus, ts *TaskService) *IssueService {
 	return &IssueService{
 		Queries:     q,
 		TxStarter:   tx,
 		Bus:         bus,
-		Analytics:   ac,
 		TaskService: ts,
 	}
 }
@@ -336,15 +334,12 @@ func (s *IssueService) publishIssueCreated(issue db.Issue, attachments []db.Atta
 }
 
 func (s *IssueService) captureCreatedAnalytics(issue db.Issue, creatorType, actorID string, opts IssueCreateOpts) {
-	if s.Analytics == nil {
-		return
-	}
 	source, taskID, autopilotRunID := classifyOrigin(issue, opts)
 	analyticsActorID := actorID
 	if creatorType == "agent" {
 		analyticsActorID = "agent:" + actorID
 	}
-	obsmetrics.RecordEvent(s.Analytics, s.Metrics, analytics.IssueCreated(
+	obsmetrics.RecordEvent(s.Metrics, analytics.IssueCreated(
 		analyticsActorID,
 		util.UUIDToString(issue.WorkspaceID),
 		util.UUIDToString(issue.ID),

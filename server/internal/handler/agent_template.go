@@ -554,7 +554,7 @@ func (h *Handler) CreateAgentFromTemplate(w http.ResponseWriter, r *http.Request
 	actorType, actorID := h.resolveActor(r, ownerID, workspaceID)
 	h.publish(protocol.EventAgentCreated, workspaceID, actorType, actorID, map[string]any{"agent": resp})
 
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.AgentCreated(
+	obsmetrics.RecordEvent(h.Metrics, analytics.AgentCreated(
 		ownerID,
 		workspaceID,
 		uuidToString(agent.ID),

@@ -391,7 +391,7 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isNew {
-		obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.Signup(uuidToString(user.ID), user.Email, signupSourceFromRequest(r)))
+		obsmetrics.RecordEvent(h.Metrics, analytics.Signup(uuidToString(user.ID), user.Email, signupSourceFromRequest(r)))
 	}
 
 	tokenString, err := h.issueJWT(user)
@@ -554,7 +554,7 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	if isNew {
 		evt := analytics.Signup(uuidToString(user.ID), user.Email, signupSourceFromRequest(r))
 		evt.Properties["auth_method"] = "google"
-		obsmetrics.RecordEvent(h.Analytics, h.Metrics, evt)
+		obsmetrics.RecordEvent(h.Metrics, evt)
 	}
 
 	// Update name and avatar from Google profile if the user was just created

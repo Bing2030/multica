@@ -1,13 +1,18 @@
 package metrics_test
 
-// PR3 lint test: enforces that every PostHog event constant declared in
-// server/internal/analytics/events.go has a paired Prometheus counter
-// reachable through metrics.RecordEvent — and that every
-// h.Analytics.Capture(analytics.<Helper>(...)) call site goes through
-// metrics.RecordEvent (no naked Capture allowed). The agent task lifecycle is
-// no longer an analytics.Event — it is recorded straight to Prometheus via the
-// typed BusinessMetrics.RecordTask* methods — so there is no longer an
-// AgentTask* allow-list here.
+// Lint test for the analytics → Prometheus dispatch contract. With the
+// PostHog transport removed, metrics.RecordEvent is the single dispatch
+// site for analytics events, so this file guards two invariants:
+//
+//  1. Every Event* constant declared in server/internal/analytics/events.go
+//     has a paired Prometheus counter reachable through metrics.IncForEvent.
+//  2. Every metrics.RecordEvent call site in handler/service/cmd-server code
+//     takes an analytics.* event helper as its event argument — never a
+//     bare value — so the typed event constructors stay the only way to emit.
+//
+// The agent task lifecycle is not an analytics.Event — it is recorded
+// straight to Prometheus via the typed BusinessMetrics.RecordTask* methods
+// — so there is no AgentTask* allow-list here.
 
 import (
 	"go/ast"
@@ -26,7 +31,7 @@ import (
 // frontendOnlyEvents are declared in events.go but emitted from the frontend,
 // not from server code. They still need a Prometheus counter (so a future
 // server-side emission point lights up the same label set) but the server
-// has no Capture call site to lint.
+// has no RecordEvent call site to lint.
 var frontendOnlyEvents = map[string]bool{
 	analytics.EventOnboardingStarted: true,
 }
@@ -62,81 +67,12 @@ func TestEveryAnalyticsEventHasPrometheusCounter(t *testing.T) {
 	}
 }
 
-// TestNoNakedAnalyticsCaptureInHandlersOrServices walks every Go file under
-// server/internal/handler and server/internal/service and asserts that every
-// `<x>.Analytics.Capture(analytics.<Helper>(...))` call goes through
-// metrics.RecordEvent. There are no exceptions: every server-side PostHog
-// event must flow through RecordEvent so the Prometheus and PostHog sides
-// cannot drift.
-func TestNoNakedAnalyticsCaptureInHandlersOrServices(t *testing.T) {
-	t.Parallel()
-
-	roots := []string{
-		filepath.Join(repoRoot(t), "internal", "handler"),
-		filepath.Join(repoRoot(t), "internal", "service"),
-		filepath.Join(repoRoot(t), "cmd", "server"),
-	}
-	// allowedFunctions is keyed by absolute file path, valued by the set of
-	// function names whose bodies are allowed to call Analytics.Capture
-	// directly. Granularity is per-function, not per-file. Currently empty —
-	// no server code is permitted to call Analytics.Capture outside
-	// metrics.RecordEvent.
-	allowedFunctions := map[string]map[string]struct{}{}
-
-	var offenders []string
-	fset := token.NewFileSet()
-	for _, root := range roots {
-		matches, err := filepath.Glob(filepath.Join(root, "*.go"))
-		if err != nil {
-			t.Fatalf("glob %s: %v", root, err)
-		}
-		for _, file := range matches {
-			if strings.HasSuffix(file, "_test.go") {
-				continue
-			}
-			f, err := parser.ParseFile(fset, file, nil, parser.SkipObjectResolution)
-			if err != nil {
-				t.Fatalf("parse %s: %v", file, err)
-			}
-			fileAllowedFns := allowedFunctions[file]
-			for _, decl := range f.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok {
-					continue
-				}
-				if _, allowed := fileAllowedFns[fn.Name.Name]; allowed {
-					continue
-				}
-				if fn.Body == nil {
-					continue
-				}
-				ast.Inspect(fn.Body, func(n ast.Node) bool {
-					call, ok := n.(*ast.CallExpr)
-					if !ok {
-						return true
-					}
-					if !isAnalyticsCapture(call) {
-						return true
-					}
-					offenders = append(offenders, fset.Position(call.Pos()).String()+" (in "+fn.Name.Name+")")
-					return true
-				})
-			}
-		}
-	}
-
-	if len(offenders) > 0 {
-		sort.Strings(offenders)
-		t.Errorf("found %d naked Analytics.Capture(...) calls — wrap them in metrics.RecordEvent so the Prometheus and PostHog sides cannot drift:\n  %s", len(offenders), strings.Join(offenders, "\n  "))
-	}
-}
-
-// TestEveryAnalyticsRecordEventTakesAnalyticsHelper enforces the inverse of
-// TestNoNakedAnalyticsCaptureInHandlersOrServices: every call site that
-// DOES go through metrics.RecordEvent must take an analytics.* event helper
-// as its third argument. Local idents are accepted only when def-use
-// tracking inside the same function body proves the value originated from
-// an `analytics.<Helper>(...)` call — bare strings or unresolved values
+// TestEveryAnalyticsRecordEventTakesAnalyticsHelper walks every Go file under
+// server/internal/handler, server/internal/service, and server/cmd/server
+// and asserts that every metrics.RecordEvent call site takes an analytics.*
+// event helper as its event argument. Local idents are accepted only when
+// def-use tracking inside the same function body proves the value originated
+// from an `analytics.<Helper>(...)` call — bare strings or unresolved values
 // fail CI.
 func TestEveryAnalyticsRecordEventTakesAnalyticsHelper(t *testing.T) {
 	t.Parallel()
@@ -176,11 +112,11 @@ func TestEveryAnalyticsRecordEventTakesAnalyticsHelper(t *testing.T) {
 					if !isMetricsRecordEvent(call) {
 						return true
 					}
-					if len(call.Args) < 3 {
-						offenders = append(offenders, fset.Position(call.Pos()).String()+" (RecordEvent must be called with 3 args: client, metrics, event)")
+					if len(call.Args) < 2 {
+						offenders = append(offenders, fset.Position(call.Pos()).String()+" (RecordEvent must be called with 2 args: metrics, event)")
 						return true
 					}
-					ev := call.Args[2]
+					ev := call.Args[1]
 					if analyticsHelperCall(ev) {
 						return true
 					}
@@ -188,10 +124,10 @@ func TestEveryAnalyticsRecordEventTakesAnalyticsHelper(t *testing.T) {
 						if _, traced := analyticsLocals[id.Name]; traced {
 							return true
 						}
-						offenders = append(offenders, fset.Position(call.Pos()).String()+" (third arg "+id.Name+" was not assigned from an analytics.* helper in this function)")
+						offenders = append(offenders, fset.Position(call.Pos()).String()+" (event arg "+id.Name+" was not assigned from an analytics.* helper in this function)")
 						return true
 					}
-					offenders = append(offenders, fset.Position(call.Pos()).String()+" (third arg must be an analytics.* helper call or a local assigned from one)")
+					offenders = append(offenders, fset.Position(call.Pos()).String()+" (event arg must be an analytics.* helper call or a local assigned from one)")
 					return true
 				})
 			}
@@ -276,7 +212,7 @@ func repoRoot(t *testing.T) string {
 }
 
 // analyticsEventNames parses analytics/events.go and returns every Event*
-// constant value (the literal string passed to PostHog).
+// constant value (the literal string the event constructor sets).
 func analyticsEventNames(t *testing.T) map[string]struct{} {
 	t.Helper()
 
@@ -329,14 +265,13 @@ func constantNameForEvent(name string) string {
 	return "Event" + strings.Join(parts, "")
 }
 
-// dispatchIncrementsCounter sends ev through RecordEvent (with a noop
-// PostHog client) and returns true when at least one Prometheus counter
-// receives a non-zero increment. We use a fresh BusinessMetrics per event
-// so a leftover prewarm value from another counter cannot mask a missing
-// dispatch case.
+// dispatchIncrementsCounter sends ev through RecordEvent and returns true
+// when at least one Prometheus counter receives a non-zero increment. We use
+// a fresh BusinessMetrics per event so a leftover prewarm value from another
+// counter cannot mask a missing dispatch case.
 func dispatchIncrementsCounter(m *metrics.BusinessMetrics, ev analytics.Event) bool {
 	before := metrics.SumAllCounters(m)
-	metrics.RecordEvent(analytics.NoopClient{}, m, ev)
+	metrics.RecordEvent(m, ev)
 	after := metrics.SumAllCounters(m)
 	return after > before
 }
@@ -376,27 +311,6 @@ func defaultPropsForEvent(name string) map[string]any {
 		return map[string]any{"form_source": "page"}
 	}
 	return map[string]any{}
-}
-
-func isAnalyticsCapture(call *ast.CallExpr) bool {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	if sel.Sel == nil || sel.Sel.Name != "Capture" {
-		return false
-	}
-	// Receiver must be a selector ending in `.Analytics`.
-	rec, ok := sel.X.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	if rec.Sel == nil || rec.Sel.Name != "Analytics" {
-		return false
-	}
-	// Must be passing an analytics helper or a local built from one — but
-	// the lint principle is "no direct Capture", so any shape fails.
-	return true
 }
 
 // isMetricsRecordEvent reports whether call is a metrics.RecordEvent

@@ -130,7 +130,7 @@ func (h *Handler) CreateFeedback(w http.ResponseWriter, r *http.Request) {
 		kind = "general"
 	}
 
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.FeedbackSubmitted(
+	obsmetrics.RecordEvent(h.Metrics, analytics.FeedbackSubmitted(
 		userID,
 		uuidToString(fb.WorkspaceID),
 		kind,

@@ -493,7 +493,7 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	taskContext := h.TaskService.AnalyticsContextForTask(r.Context(), task)
 	platform, _, _ := middleware.ClientMetadataFromContext(r.Context())
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.ChatMessageSent(
+	obsmetrics.RecordEvent(h.Metrics, analytics.ChatMessageSent(
 		userID,
 		workspaceID,
 		uuidToString(session.ID),

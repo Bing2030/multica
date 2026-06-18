@@ -476,7 +476,7 @@ func (h *Handler) CreateAutopilot(w http.ResponseWriter, r *http.Request) {
 
 	resp := autopilotToResponse(autopilot)
 	h.publish(protocol.EventAutopilotCreated, workspaceID, "member", userID, map[string]any{"autopilot": resp})
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.AutopilotCreated(
+	obsmetrics.RecordEvent(h.Metrics, analytics.AutopilotCreated(
 		userID,
 		workspaceID,
 		uuidToString(autopilot.ID),

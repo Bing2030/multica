@@ -5,8 +5,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-
-	"github.com/multica-ai/multica/server/internal/analytics"
 )
 
 type AppConfig struct {
@@ -58,7 +56,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	if v := os.Getenv("ANALYTICS_DISABLED"); v != "true" && v != "1" {
 		config.PosthogKey = os.Getenv("POSTHOG_API_KEY")
 		config.PosthogHost = os.Getenv("POSTHOG_HOST")
-		config.AnalyticsEnvironment = analytics.EnvironmentFromEnv()
+		config.AnalyticsEnvironment = analyticsEnvironmentFromEnv()
 		if config.PosthogHost == "" && config.PosthogKey != "" {
 			config.PosthogHost = "https://us.i.posthog.com"
 		}
@@ -127,4 +125,31 @@ func canonicalURLHost(raw string) string {
 		host = u.Hostname()
 	}
 	return strings.TrimSuffix(strings.ToLower(host), ".")
+}
+
+// analyticsEnvironmentFromEnv returns the analytics environment label the
+// frontend forwards to its own PostHog client (see /api/config consumers).
+// Falls back to "dev" when neither ANALYTICS_ENVIRONMENT nor APP_ENV names a
+// recognized tier.
+func analyticsEnvironmentFromEnv() string {
+	if v := normalizeAnalyticsEnvironment(os.Getenv("ANALYTICS_ENVIRONMENT")); v != "" {
+		return v
+	}
+	if v := normalizeAnalyticsEnvironment(os.Getenv("APP_ENV")); v != "" {
+		return v
+	}
+	return "dev"
+}
+
+func normalizeAnalyticsEnvironment(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "production", "prod":
+		return "production"
+	case "staging", "stage":
+		return "staging"
+	case "development", "dev", "test", "local":
+		return "dev"
+	default:
+		return ""
+	}
 }

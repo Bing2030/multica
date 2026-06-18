@@ -861,7 +861,7 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	actorType, actorID := h.resolveActor(r, ownerID, workspaceID)
 	h.publish(protocol.EventAgentCreated, workspaceID, actorType, actorID, map[string]any{"agent": broadcastAgentResponse(resp)})
 
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.AgentCreated(
+	obsmetrics.RecordEvent(h.Metrics, analytics.AgentCreated(
 		ownerID,
 		workspaceID,
 		uuidToString(created.ID),

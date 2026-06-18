@@ -115,7 +115,7 @@ func (h *Handler) CompleteOnboarding(w http.ResponseWriter, r *http.Request) {
 		if user.OnboardedAt.Valid {
 			onboardedAt = user.OnboardedAt.Time.UTC().Format("2006-01-02T15:04:05Z07:00")
 		}
-		obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.OnboardingCompleted(
+		obsmetrics.RecordEvent(h.Metrics, analytics.OnboardingCompleted(
 			userID,
 			req.WorkspaceID,
 			path,
@@ -260,13 +260,13 @@ func (h *Handler) PatchOnboarding(w http.ResponseWriter, r *http.Request) {
 	// let Grafana cross-check the funnel against PostHog.
 	if firstTouch && req.Questionnaire != nil && len(*req.Questionnaire) > 0 && string(*req.Questionnaire) != "{}" {
 		platform, _, _ := middleware.ClientMetadataFromContext(r.Context())
-		obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.OnboardingStarted(userID, platform))
+		obsmetrics.RecordEvent(h.Metrics, analytics.OnboardingStarted(userID, platform))
 	}
 
 	var after questionnaireAnswers
 	_ = json.Unmarshal(user.OnboardingQuestionnaire, &after)
 	if after.complete() && !before.complete() {
-		obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.OnboardingQuestionnaireSubmitted(
+		obsmetrics.RecordEvent(h.Metrics, analytics.OnboardingQuestionnaireSubmitted(
 			userID,
 			[]string(after.Source),
 			after.Role,
@@ -340,7 +340,7 @@ func (h *Handler) JoinCloudWaitlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.CloudWaitlistJoined(userID, reason != ""))
+	obsmetrics.RecordEvent(h.Metrics, analytics.CloudWaitlistJoined(userID, reason != ""))
 
 	writeJSON(w, http.StatusOK, userToResponse(user))
 }

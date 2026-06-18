@@ -345,7 +345,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			OwnerID:     ownerID,
 		})
 		if err != nil {
-			obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeFailed(
+			obsmetrics.RecordEvent(h.Metrics, analytics.RuntimeFailed(
 				uuidToString(ownerID),
 				req.WorkspaceID,
 				req.DaemonID,
@@ -378,7 +378,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		// Inserted is false for normal daemon reconnects/upserts, so
 		// runtime_ready is a first-ready-per-runtime-row signal.
 		if row.Inserted {
-			obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeRegistered(
+			obsmetrics.RecordEvent(h.Metrics, analytics.RuntimeRegistered(
 				uuidToString(ownerID),
 				req.WorkspaceID,
 				uuidToString(registered.ID),
@@ -388,7 +388,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 				req.CLIVersion,
 			))
 			if registered.Status == "online" {
-				obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeReady(
+				obsmetrics.RecordEvent(h.Metrics, analytics.RuntimeReady(
 					uuidToString(ownerID),
 					req.WorkspaceID,
 					uuidToString(registered.ID),
@@ -562,7 +562,7 @@ func (h *Handler) DaemonDeregister(w http.ResponseWriter, r *http.Request) {
 			slog.Warn("deregister: failed to set offline", "runtime_id", rid, "error", err)
 			continue
 		}
-		obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeOffline(
+		obsmetrics.RecordEvent(h.Metrics, analytics.RuntimeOffline(
 			uuidToString(rt.OwnerID),
 			wsID,
 			uuidToString(rt.ID),
@@ -1928,7 +1928,7 @@ func (h *Handler) emitIssueExecutedOnFirstCompletion(r *http.Request, task *db.A
 	if marked.CreatorType == "agent" {
 		distinct = "agent:" + distinct
 	}
-	obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.IssueExecuted(
+	obsmetrics.RecordEvent(h.Metrics, analytics.IssueExecuted(
 		distinct,
 		uuidToString(marked.WorkspaceID),
 		uuidToString(marked.ID),

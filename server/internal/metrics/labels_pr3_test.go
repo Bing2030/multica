@@ -74,11 +74,11 @@ func TestOnboardingStartedUnknownPlatformCollapses(t *testing.T) {
 	m := metrics.NewBusinessMetrics()
 
 	// First fire: a known platform — sanity check the happy path.
-	metrics.RecordEvent(analytics.NoopClient{}, m, analytics.OnboardingStarted("user-1", "web"))
+	metrics.RecordEvent(m, analytics.OnboardingStarted("user-1", "web"))
 
 	// Second fire: an attacker-shaped unknown platform that, without
 	// NormalizePlatform, would inflate the label cardinality.
-	metrics.RecordEvent(analytics.NoopClient{}, m, analytics.OnboardingStarted("user-2", "iphone-build-1234567890-abcdef"))
+	metrics.RecordEvent(m, analytics.OnboardingStarted("user-2", "iphone-build-1234567890-abcdef"))
 
 	// Read /metrics-style output and assert exactly two label values are
 	// present: web and unknown. Anything else means the raw header
