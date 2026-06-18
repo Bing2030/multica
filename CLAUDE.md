@@ -32,7 +32,6 @@ Multica is an AI-native task management platform — like Linear, but with AI ag
 - `server/` — Go backend (Chi router, sqlc for DB, gorilla/websocket for real-time)
 - `apps/web/` — Next.js frontend (App Router)
 - `apps/desktop/` — Electron desktop app (electron-vite)
-- `apps/mobile/` — Expo / React Native iOS app. See `apps/mobile/CLAUDE.md`.
 - `packages/core/` — Headless business logic (zero react-dom)
 - `packages/ui/` — Atomic UI components (zero business logic)
 - `packages/views/` — Shared business pages/components (zero next/* imports, zero react-router imports)
@@ -74,14 +73,9 @@ The architecture relies on a strict split between server state and client state.
 
 ## Sharing Principles
 
-The monorepo splits into two share zones:
+The monorepo has one share zone: **web and desktop** share business logic, components, hooks, stores, and views through `packages/core/`, `packages/ui/`, and `packages/views/` — the existing model, keep using it.
 
-- **Web and desktop** share business logic, components, hooks, stores, and views through `packages/core/`, `packages/ui/`, and `packages/views/`. Existing model — keep using it.
-- **Mobile (`apps/mobile/`) is independent.** It shares only **types and pure functions** from `@multica/core/`, with `import type` for types (zero runtime coupling). UI, state, hooks, providers, i18n, React version, build pipeline, release cadence — all mobile-owned.
-
-Mobile is locked to the React version that Expo SDK / React Native ships (which lags React main by 6-12 months). Coupling mobile to the root `catalog:` React would block mobile from upgrading on its own schedule.
-
-See `apps/mobile/CLAUDE.md` for the mobile rules and tech-stack baseline.
+> A mobile app formerly lived under `apps/mobile/` as an independent consumer of types and pure functions only (it was locked to the React version shipped by Expo SDK / React Native). It has been **removed** and is recoverable from git history; see *Mobile (removed)* below.
 
 ## Commands
 
@@ -125,10 +119,9 @@ cd server && go test ./internal/handler/ -run TestName
 # Run a single E2E test (requires backend + frontend running)
 pnpm exec playwright test e2e/tests/specific-test.spec.ts
 
-# Mobile (Expo) — ARCHIVED / FROZEN. Not built, tested, or run in CI, and there are no
-# dev:mobile* / ios:mobile* scripts. Source is kept under apps/mobile/ for reference;
-# see apps/mobile/UNMAINTAINED.md. To un-archive, restore the scripts + the
-# mobile-verify.yml triggers (both recoverable from git history).
+# Mobile (Expo) — REMOVED. The app formerly under apps/mobile/ was deleted;
+# recoverable from git history (it shared types/pure functions from @multica/core
+# and was locked to the Expo SDK / React Native React version).
 
 # Desktop build & package
 pnpm --filter @multica/desktop build      # Compile TS → JS (reads .env.production)
@@ -205,7 +198,6 @@ Every workspace (`apps/` and `packages/` directories) must explicitly declare al
 
 - Use `"pkg": "catalog:"` to reference the shared version from `pnpm-workspace.yaml`.
 - CI enforces this via `eslint-plugin-import-x/no-extraneous-dependencies`.
-- Exception: `apps/mobile/` uses pinned versions (not `catalog:`) for packages tied to its own React/Expo version.
 
 ### Package Boundary Rules
 
@@ -248,9 +240,9 @@ Web and desktop share the same CSS foundation from `packages/ui/styles/`.
 - **Shared styles** → `packages/ui/styles/`. Never duplicate scrollbar styling, keyframes, or base layer rules in app CSS.
 - **`@source` directives** → both apps scan shared packages so Tailwind sees all class names.
 
-## Mobile-specific Rules (archived)
+## Mobile (removed)
 
-The mobile app (`apps/mobile/`) is **archived / frozen** — see `apps/mobile/UNMAINTAINED.md`. It is not built, tested, or run in CI, and the `dev:mobile*` / `ios:mobile*` scripts have been removed from the root `package.json`. Source is kept in place as a historical reference and the archival is reversible. To un-archive: restore the mobile scripts in `package.json` and the `on:` triggers in `.github/workflows/mobile-verify.yml` (both recoverable from git history), then re-read `apps/mobile/CLAUDE.md` for the import whitelist (`import type` from `@multica/core/types/*` + pure functions only) and the locked tech-stack baseline.
+The mobile app formerly under `apps/mobile/` has been **removed**. It shared only types and pure functions from `@multica/core/` (with `import type` for types, zero runtime coupling) and was locked to the React version shipped by Expo SDK / React Native — which is why it was kept out of the root `catalog:` React. It is fully recoverable from git history: revert the deletion, then re-read the restored `apps/mobile/CLAUDE.md` for the import whitelist and tech-stack baseline.
 
 ## Desktop-specific Rules
 
