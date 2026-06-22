@@ -1,4 +1,3 @@
-import { useId } from "react";
 import { Monitor } from "lucide-react";
 
 // Claude (Anthropic) — official mark, sourced from Bootstrap Icons (bi-claude)
@@ -26,51 +25,6 @@ function OpenCodeLogo({ className }: { className: string }) {
       <path d="M18 18H6V6H18V18Z" fill="#CFCECD" />
       <path d="M18 3H6V18H18V3ZM24 24H0V0H24V24Z" fill="#656363" />
     </svg>
-  );
-}
-
-// OpenClaw — lobster mascot, vector version based on official branding
-function OpenClawLogo({ className }: { className: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" className={className}>
-      {/* Body */}
-      <path
-        d="M8 2C5.5 2 3.5 4 3.5 6.5S5 10.5 6.5 11v1.5H8V11c.3.1.7.1 1 0v1.5h1.5V11c1.5-.5 3-2.5 3-4.5S10.5 2 8 2Z"
-        fill="#E8453A"
-      />
-      {/* Left claw */}
-      <path
-        d="M3.5 5.5C2 5 1 6 1.5 7s2 .5 2.2-.7"
-        fill="#FF6B5A"
-      />
-      {/* Right claw */}
-      <path
-        d="M12.5 5.5c1.5-.5 2.5.5 2 1.5s-2 .5-2.2-.7"
-        fill="#FF6B5A"
-      />
-      {/* Antennae */}
-      <path d="M6.5 3Q5 1.2 4.3 1.5" stroke="#FF6B5A" strokeWidth="0.8" strokeLinecap="round" />
-      <path d="M9.5 3Q11 1.2 11.7 1.5" stroke="#FF6B5A" strokeWidth="0.8" strokeLinecap="round" />
-      {/* Eyes */}
-      <circle cx="6.2" cy="5.2" r="0.9" fill="#050810" />
-      <circle cx="9.8" cy="5.2" r="0.9" fill="#050810" />
-      <circle cx="6.4" cy="5" r="0.3" fill="#00E5CC" />
-      <circle cx="10" cy="5" r="0.3" fill="#00E5CC" />
-    </svg>
-  );
-}
-
-// Hermes (NousResearch) — official anime mascot, 48×48 webp embedded as data URI
-const HERMES_ICON =
-  "data:image/webp;base64,UklGRuYDAABXRUJQVlA4INoDAADQEwCdASowADAAPm0uk0ckIiGhKrqpWIANiWkAEyQea/fD8IewvGL5V7Nb3H8u/MA8G9rT+4flL+UfIe42/23GB8zPqF/o3E0UAP5h/h/+F6ZX+x5evnX/r+4T/K/67/u/zg7znogfrusMANZLkn1gvlY/vNsKubtj/9xLSzxTsLr7K9GLdFNs5rwtISRcPXvH4z57n2fg0XR3aQ2D+pPpycwyl7TwAAD+/2DbjivnePzfyHCsdOgJXKlUR/OgAkofD7K4AdmsPKyP5Ml4/4HBYmIm5/efn/H+X3IZtngyaUOvwbFuRS/1yODFYO3vf3qeXGgPdfgIROXd/EPT7K2jysfvY9N71+w6g2gBPs+P6lxYkPf6S9QfpvH/7Pp7i8xRh0nVDBTEQyczSz7V9hoqo4nDJuii+SfibZRR/d5zB+9jkcb1DNN7YnC5Y7+WfGrE3eseXt3hSm+NS5++m1MHbjsrd9z/Q4HPRP/C85Po41XObalGyIUcFUL2j2n3uI/Yh6U8r6trCUJFB4kT3fsv6+8ylX/d96y2hq869FCXLjq4YqEO8vs5BtT52sf7KyDxPAWkH/b06YbfVXf4/7y5THL6Sr/4mOrrY9P2LW81f05HHFN8n0jcyqKOH7AluMm0AHPgFyz8RVrfBdmnPiC2FLMQfNDte5yGFzGC3fMlDed/tS/PO3Q/hjsNLvAXUUjqHyCo3JeN69jyNgWjjf8iUqoBsXT+lJyp2r8p60ad1jxhNyTblyJwda8aWEw1hFDeGjpMGguDF66RL4c+ZO+PhculC6WxvCsZ7IPAsdD7/ywx3w3AowJ66hAAK7k+m6X2QV06OVOCwyIGERex/AUyuBbLUK93X58+M+Si7YfYjVYGpoJ7JvSgD8ExaA21z9OY+si+1wreacDanKnFDmhwBQC3t6MLeXCOGp3VURDKl10K7tdKHQcb4hr48ba+1x/MrMRwHfq3IQrDIXPYCg4b0OLnVN9JyXttKGM63B5imIdKuU0r6hhSslT10lGLjnIJuwO5WKR0RHs+BX5vs6H63y3K7IuuZ1eRN+Aczvbs4QuDs6ZRuzjJ/1DJ5R/3ZrFPrtxvMwT06vAXIgcbhLGNLhOQUYRPdUN5MgyCtL5NH71ArTPLRRkIjhGwoCYXKKqlqIKKT9NX3vwp/nlh4SX71dlYg/mPXbJ9bMeVugyjqFahjFTJ/rT3HtBCWG8h+OvvbOFDFKurCG9BOhO9B719OS7zsP0KPqoymnv7hVvoJyZp0iziCbBvaJpmF9Cvfs8/vWqWr7TUo616WfMW+X9nkgpuqtnfAAAAAA==";
-
-function HermesLogo({ className }: { className: string }) {
-  return (
-    <img
-      src={HERMES_ICON}
-      alt="Hermes"
-      className={`${className} rounded-sm`}
-    />
   );
 }
 
@@ -112,86 +66,6 @@ function CursorLogo({ className }: { className: string }) {
   );
 }
 
-// Kimi (Moonshot AI) — wordmark "K" mark in Moonshot brand purple, simple
-// rounded-square logotype suitable for small icon sizes.
-function KimiLogo({ className }: { className: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className}>
-      <rect width="24" height="24" rx="5" fill="#1F1147" />
-      <path
-        d="M7.2 6h2.4v5.1l4.3-5.1h2.9l-4.4 5.1L17 18h-2.9l-3.2-5.2-1.3 1.5V18H7.2V6z"
-        fill="#FFFFFF"
-      />
-    </svg>
-  );
-}
-
-// Gemini (Google) — official "Google Gemini" mark from Simple Icons
-// (simpleicons.org/icons/googlegemini.svg, CC0 1.0). Rendered in the
-// Simple Icons brand color (#8E75B2), matching the pattern used by the
-// other provider marks in this file.
-function GeminiLogo({ className }: { className: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="#8E75B2" className={className}>
-      <path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81" />
-    </svg>
-  );
-}
-
-// Antigravity (Google) — official mark, shipped as a PNG asset next to
-// this file. Different bundlers type the PNG import differently — Next.js
-// gives a StaticImageData object (.src), electron-vite + plain vite give
-// a string. Normalise via unknown so neither side's narrower type wins
-// and breaks the other's typecheck.
-import antigravityLogo from "./antigravity-logo.png";
-const antigravityLogoSrc: string = (() => {
-  const asset = antigravityLogo as unknown;
-  return typeof asset === "string" ? asset : (asset as { src: string }).src;
-})();
-
-function AntigravityLogo({ className }: { className: string }) {
-  return <img src={antigravityLogoSrc} alt="Antigravity" className={className} />;
-}
-
-// Kiro CLI — official icon sourced from kiro.dev/icon.svg.
-function KiroLogo({ className }: { className: string }) {
-  const maskId = `kiro-logo-mask-${useId().replace(/:/g, "")}`;
-
-  return (
-    <svg viewBox="0 0 1200 1200" fill="none" className={className}>
-      <rect width="1200" height="1200" rx="260" fill="#9046FF" />
-      <mask
-        id={maskId}
-        style={{ maskType: "luminance" }}
-        maskUnits="userSpaceOnUse"
-        x="272"
-        y="202"
-        width="655"
-        height="796"
-      >
-        <path
-          d="M926.578 202.793H272.637V997.857H926.578V202.793Z"
-          fill="white"
-        />
-      </mask>
-      <g mask={`url(#${maskId})`}>
-        <path
-          d="M398.554 818.914C316.315 1001.03 491.477 1046.74 620.672 940.156C658.687 1059.66 801.052 970.473 852.234 877.795C964.787 673.567 919.318 465.357 907.64 422.374C827.637 129.443 427.623 128.946 358.8 423.865C342.651 475.544 342.402 534.18 333.458 595.051C328.986 625.86 325.507 645.488 313.83 677.785C306.873 696.424 297.68 712.819 282.773 740.645C259.915 783.881 269.604 867.113 387.87 823.883L399.051 818.914H398.554Z"
-          fill="white"
-        />
-        <path
-          d="M636.123 549.353C603.328 549.353 598.359 510.097 598.359 486.742C598.359 465.623 602.086 448.977 609.293 438.293C615.504 428.852 624.697 424.131 636.123 424.131C647.555 424.131 657.492 428.852 664.447 438.541C672.398 449.474 676.623 466.12 676.623 486.742C676.623 525.998 661.471 549.353 636.375 549.353H636.123Z"
-          fill="black"
-        />
-        <path
-          d="M771.24 549.353C738.445 549.353 733.477 510.097 733.477 486.742C733.477 465.623 737.203 448.977 744.41 438.293C750.621 428.852 759.814 424.131 771.24 424.131C782.672 424.131 792.609 428.852 799.564 438.541C807.516 449.474 811.74 466.12 811.74 486.742C811.74 525.998 796.588 549.353 771.492 549.353H771.24Z"
-          fill="black"
-        />
-      </g>
-    </svg>
-  );
-}
-
 export function ProviderLogo({
   provider,
   className = "h-4 w-4",
@@ -202,30 +76,16 @@ export function ProviderLogo({
   switch (provider) {
     case "claude":
       return <ClaudeLogo className={className} />;
-    case "codebuddy":
-      return <ClaudeLogo className={className} />;
     case "codex":
       return <CodexLogo className={className} />;
     case "opencode":
       return <OpenCodeLogo className={className} />;
-    case "openclaw":
-      return <OpenClawLogo className={className} />;
-    case "hermes":
-      return <HermesLogo className={className} />;
     case "pi":
       return <PiLogo className={className} />;
     case "copilot":
       return <CopilotLogo className={className} />;
     case "cursor":
       return <CursorLogo className={className} />;
-    case "kimi":
-      return <KimiLogo className={className} />;
-    case "kiro":
-      return <KiroLogo className={className} />;
-    case "gemini":
-      return <GeminiLogo className={className} />;
-    case "antigravity":
-      return <AntigravityLogo className={className} />;
     default:
       return <Monitor className={className} />;
   }

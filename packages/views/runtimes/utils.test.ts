@@ -142,8 +142,8 @@ describe("estimateCost", () => {
   });
 
   it("prices the provider-prefixed Anthropic form (anthropic/claude-sonnet-4.6)", () => {
-    // openclaw / opencode emit `<provider>/<model>`. Same SKU as the
-    // bare form, must hit the same rate.
+    // opencode emits `<provider>/<model>`. Same SKU as the bare form,
+    // must hit the same rate.
     const cost = estimateCost({
       ...zeroUsage,
       model: "anthropic/claude-sonnet-4.6",
@@ -412,8 +412,8 @@ describe("isModelPriced", () => {
     expect(isModelPriced("claude-opus-4.7")).toBe(true);
   });
 
-  it("recognises provider-prefixed Anthropic IDs (openclaw / opencode form)", () => {
-    // openclaw / opencode emit `<provider>/<model>` in `meta.agentMeta.model`.
+  it("recognises provider-prefixed Anthropic IDs (opencode form)", () => {
+    // opencode emits `<provider>/<model>` in `meta.agentMeta.model`.
     // The provider prefix is routing metadata, not part of the SKU.
     expect(isModelPriced("anthropic/claude-fable-5")).toBe(true);
     expect(isModelPriced("anthropic/claude-opus-4.7")).toBe(true);
