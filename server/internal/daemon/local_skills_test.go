@@ -70,35 +70,6 @@ func TestListRuntimeLocalSkills_Claude(t *testing.T) {
 	}
 }
 
-func TestListRuntimeLocalSkills_Kiro(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	writeTestLocalSkill(t, filepath.Join(home, ".kiro", "skills"), "review-helper", map[string]string{
-		"SKILL.md": "---\nname: Kiro Review\ndescription: Review code with Kiro\n---\n# Kiro Review\n",
-	})
-
-	skills, supported, err := listRuntimeLocalSkills("kiro")
-	if err != nil {
-		t.Fatalf("listRuntimeLocalSkills: %v", err)
-	}
-	if !supported {
-		t.Fatal("kiro should be supported")
-	}
-	if len(skills) != 1 {
-		t.Fatalf("expected 1 skill, got %d", len(skills))
-	}
-	if skills[0].Key != "review-helper" {
-		t.Fatalf("key = %q, want review-helper", skills[0].Key)
-	}
-	if skills[0].Name != "Kiro Review" {
-		t.Fatalf("name = %q, want Kiro Review", skills[0].Name)
-	}
-	if skills[0].SourcePath != "~/.kiro/skills/review-helper" {
-		t.Fatalf("source_path = %q", skills[0].SourcePath)
-	}
-}
-
 // Skill installers (for example lark-cli) place every skill at a shared
 // location like ~/.agents/skills/<name> and symlink each one into the
 // runtime root (~/.claude/skills/<name>). The previous filepath.WalkDir
@@ -273,29 +244,6 @@ func TestLoadRuntimeLocalSkillBundle_OpenCode(t *testing.T) {
 	}
 	if bundle.SourcePath != "~/.config/opencode/skills/release/reporter" {
 		t.Fatalf("source_path = %q", bundle.SourcePath)
-	}
-}
-
-func TestListRuntimeLocalSkills_OpenClaw(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	writeTestLocalSkill(t, filepath.Join(home, ".openclaw", "skills"), "planner", map[string]string{
-		"SKILL.md": "# Planner\n",
-	})
-
-	skills, supported, err := listRuntimeLocalSkills("openclaw")
-	if err != nil {
-		t.Fatalf("listRuntimeLocalSkills: %v", err)
-	}
-	if !supported {
-		t.Fatal("openclaw should be supported")
-	}
-	if len(skills) != 1 {
-		t.Fatalf("expected 1 skill, got %d", len(skills))
-	}
-	if skills[0].SourcePath != "~/.openclaw/skills/planner" {
-		t.Fatalf("source_path = %q", skills[0].SourcePath)
 	}
 }
 

@@ -112,18 +112,11 @@ var (
 		"unknown": "unknown",
 	}
 	knownRuntimeProviders = map[string]string{
-		"antigravity":   "antigravity",
 		"claude":        "claude",
-		"codebuddy":     "codebuddy",
 		"codex":         "codex",
 		"copilot":       "copilot",
 		"cursor":        "cursor",
-		"gemini":        "gemini",
-		"hermes":        "hermes",
-		"kiro":          "kiro",
-		"kimi":          "kimi",
 		"multica_agent": "multica_agent",
-		"openclaw":      "openclaw",
 		"opencode":      "opencode",
 		"pi":            "pi",
 		"other":         "other",

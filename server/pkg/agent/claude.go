@@ -833,9 +833,9 @@ func detectCLIVersion(ctx context.Context, execPath string) (string, error) {
 }
 
 // extractVersionLine pulls the version line out of a `<cli> --version` capture,
-// discarding leading shell noise. On Windows, npm-installed CLI shims (notably
-// gemini's) emit `chcp` output like `Active code page: 65001` before the real
-// version reaches stdout, and the raw concatenation was being persisted as the
+// discarding leading shell noise. On Windows, npm-installed CLI shims can
+// emit `chcp` output like `Active code page: 65001` before the real version
+// reaches stdout, and the raw concatenation was being persisted as the
 // runtime version (see #2516).
 //
 // The heuristic: return the first non-empty line that contains a semver-shaped

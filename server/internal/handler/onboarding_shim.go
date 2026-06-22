@@ -67,7 +67,7 @@ const onboardingAssistantAvatarURL = "data:image/svg+xml,%3Csvg xmlns='http://ww
 // Multica Helper agent created by this shim. Pre-v3 desktop submits a
 // starter prompt from the workspace OnboardingHelperModal; that prompt
 // becomes the issue body, while this constant becomes the agent's identity
-// block in CLAUDE.md / AGENTS.md / GEMINI.md. v3 frontend has its own
+// block in CLAUDE.md / AGENTS.md. v3 frontend has its own
 // in-views copy of this string (`packages/views/onboarding/templates/
 // helper-instructions.ts`) — these two must stay in sync until the shim
 // is removed.
@@ -557,24 +557,24 @@ func zhNoRuntimeIssueDescription() string {
 		"",
 		"完整文档：https://multica.ai/docs/install-agent-runtime",
 		"",
-		"中文用户建议先装 Kimi CLI：",
+		"中文用户建议先装 Claude Code CLI：",
 		"",
-		"1. 在 macOS / Linux 终端安装 Kimi CLI：",
-		"   curl -LsSf https://code.kimi.com/install.sh | bash",
+		"1. 在 macOS / Linux 终端安装 Claude Code：",
+		"   curl -fsSL https://claude.ai/install.sh | bash",
 		"   Windows PowerShell：",
-		"   Invoke-RestMethod https://code.kimi.com/install.ps1 | Invoke-Expression",
-		"2. 确认终端能找到 Kimi：",
-		"   kimi --version",
-		"3. 在你想让 Kimi 工作的项目目录里启动一次：",
-		"   kimi",
-		"4. 首次启动后输入 /login，按提示完成 Kimi Code 或 API key 配置。",
+		"   irm https://claude.ai/install.ps1 | iex",
+		"2. 确认终端能找到 Claude Code：",
+		"   claude --version",
+		"3. 在你想让 Claude Code 工作的项目目录里启动一次：",
+		"   claude",
+		"4. 首次启动后按提示登录并完成 API key 配置。",
 		"5. 重启 Multica 守护进程：",
 		"   multica daemon restart",
 		"   如果你用桌面端，重启 app 即可。",
-		"6. 回到 Runtimes 页面刷新。你应该能看到一个在线的 Kimi 运行时。",
+		"6. 回到 Runtimes 页面刷新。你应该能看到一个在线的 Claude Code 运行时。",
 		"7. 用这个运行时创建第一个智能体，再把一个 issue 分配给它，并把状态切到 todo。",
 		"",
-		"Kimi CLI 官方文档：https://moonshotai.github.io/kimi-cli/zh/guides/getting-started.html",
+		"Claude Code 官方文档：https://docs.claude.com/en/docs/claude-code/setup",
 		"",
 		"运行时连上后，你就可以创建 Multica Helper，开始一次有智能体参与的上手引导。",
 	}, "\n")

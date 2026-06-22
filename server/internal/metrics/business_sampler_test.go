@@ -53,7 +53,7 @@ func filledSnapshot(now time.Time) *samplerSnapshot {
 	snap.taskStuck["issue"] = 1
 
 	snap.runtimeOnline[runtimeOnlineKey{runtimeMode: "local", provider: "claude"}] = 4
-	snap.runtimeOnline[runtimeOnlineKey{runtimeMode: "cloud", provider: "kiro"}] = 2
+	snap.runtimeOnline[runtimeOnlineKey{runtimeMode: "cloud", provider: "cursor"}] = 2
 
 	snap.heartbeatAge["local"] = samplerHistogram{
 		count:   3,
@@ -116,7 +116,7 @@ func TestBusinessSamplerCollectorEmitsExpectedMetrics(t *testing.T) {
 		`multica_agent_task_running{runtime_mode="local",source="issue"} 1`,
 		`multica_agent_task_stuck_total{source="issue"} 1`,
 		`multica_runtime_online{provider="claude",runtime_mode="local"} 4`,
-		`multica_runtime_online{provider="kiro",runtime_mode="cloud"} 2`,
+		`multica_runtime_online{provider="cursor",runtime_mode="cloud"} 2`,
 		`multica_runtime_heartbeat_age_seconds_count{runtime_mode="local"} 3`,
 		`multica_runtime_heartbeat_age_seconds_sum{runtime_mode="local"} 45`,
 		`multica_workspace_total 250`,

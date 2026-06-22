@@ -19,12 +19,8 @@ import (
 // Codex:       skills → handled separately in Prepare via codex-home
 // Copilot:     skills → {workDir}/.github/skills/{name}/SKILL.md  (native project-level discovery)
 // OpenCode:    skills → {workDir}/.opencode/skills/{name}/SKILL.md  (native discovery)
-// OpenClaw:    skills → {workDir}/skills/{name}/SKILL.md  (native discovery — paired with a per-task synthesized openclaw-config.json that pins agents.defaults.workspace to workDir; see openclaw_config.go)
 // Pi:          skills → {workDir}/.pi/skills/{name}/SKILL.md  (native discovery)
 // Cursor:      skills → {workDir}/.cursor/skills/{name}/SKILL.md  (native discovery)
-// Kimi:        skills → {workDir}/.kimi/skills/{name}/SKILL.md  (native discovery)
-// Kiro:        skills → {workDir}/.kiro/skills/{name}/SKILL.md  (native discovery)
-// Antigravity: skills → {workDir}/.agents/skills/{name}/SKILL.md  (native discovery — see https://antigravity.google/docs/gcli-migration "Workspace skills")
 // Default:     skills → {workDir}/.agent_context/skills/{name}/SKILL.md
 //
 // manifest, when non-nil, is populated with every file we created and every
@@ -47,7 +43,7 @@ func writeContextFiles(workDir, provider string, ctx TaskContextForEnv, manifest
 		// themselves or it survived from a crashed prior run we can't
 		// safely distinguish from intentional content. Refusing the
 		// write is the correct call: the runtime brief (CLAUDE.md /
-		// AGENTS.md / GEMINI.md) already carries every fact this file
+		// AGENTS.md) already carries every fact this file
 		// would, so the agent runs fine without the sidecar copy.
 		// Anything else is a real failure.
 		if !errors.Is(err, errPathPreExists) {
@@ -171,7 +167,7 @@ func resolveSkillsDir(workDir, provider string, manifest *sidecarManifest) (stri
 // it can match the managed skill roots the prior manifest recorded.
 func skillsDirPath(workDir, provider string) string {
 	switch provider {
-	case "claude", "codebuddy":
+	case "claude":
 		// Claude Code natively discovers skills from .claude/skills/ in the workdir.
 		return filepath.Join(workDir, ".claude", "skills")
 	case "copilot":
@@ -190,34 +186,12 @@ func skillsDirPath(workDir, provider string) string {
 		// without those, OpenCode walks from the daemon's inherited PWD and
 		// misses .opencode/skills + AGENTS.md entirely (MUL-2416).
 		return filepath.Join(workDir, ".opencode", "skills")
-	case "openclaw":
-		// OpenClaw's native skill scanner reads <workspaceDir>/skills/. The
-		// daemon pairs this with a per-task synthesized openclaw-config.json
-		// (see openclaw_config.go) that pins agents.defaults.workspace to
-		// workDir, so writing here is what the CLI actually scans. Before
-		// MUL-2219 this used to fall back to .agent_context/skills/, which
-		// no openclaw scan path ever inspected.
-		return filepath.Join(workDir, "skills")
 	case "pi":
 		// Pi natively discovers skills from .pi/skills/ in the workdir.
 		return filepath.Join(workDir, ".pi", "skills")
 	case "cursor":
 		// Cursor natively discovers skills from .cursor/skills/ in the workdir.
 		return filepath.Join(workDir, ".cursor", "skills")
-	case "kimi":
-		// Kimi Code CLI auto-discovers project-level skills from .kimi/skills/
-		// in the workdir. See https://moonshotai.github.io/kimi-cli/en/customization/skills.html
-		return filepath.Join(workDir, ".kimi", "skills")
-	case "kiro":
-		// Kiro CLI auto-discovers project-level skills from .kiro/skills/
-		// in the workdir.
-		return filepath.Join(workDir, ".kiro", "skills")
-	case "antigravity":
-		// Antigravity (`agy`) auto-discovers workspace-level skills from
-		// .agents/skills/ in the workdir. The CLI inherits Gemini CLI's
-		// workspace skill layout; see https://antigravity.google/docs/gcli-migration
-		// under "Workspace skills".
-		return filepath.Join(workDir, ".agents", "skills")
 	default:
 		// Fallback: write to .agent_context/skills/ (referenced by meta config).
 		return filepath.Join(workDir, ".agent_context", "skills")
