@@ -106,7 +106,6 @@
   },
   "peerDependencies": {
     "@tanstack/react-query": "catalog:",
-    "@tanstack/react-table": "catalog:",
     "i18next": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
