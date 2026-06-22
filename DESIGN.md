@@ -77,6 +77,27 @@ Other useful targets: `make server` (Go only), `pnpm dev:web` / `pnpm dev:deskto
 (regenerate DB code after editing `server/pkg/db/queries/*.sql`), `make cli ARGS="..."`
 (run the `multica` CLI from source).
 
+**Rebuild & restart the whole platform** (after pulling changes or editing Go code):
+
+```bash
+make stop                       # kill this checkout's backend + web
+make build                      # rebuild server/CLI/migrate binaries → server/bin/
+make start                      # ensure Postgres + migrate + run server + web (foreground)
+```
+
+`make start` blocks (it owns the server + web in the foreground), so run it in a dedicated
+terminal or background it. While it runs, check the two surfaces:
+
+```bash
+curl -s localhost:8080/health    # → {"status":"ok"}
+curl -s -o /dev/null -w '%{http_code}\n' localhost:3000   # → 200 (web)
+```
+
+Running desktop clients reconnect automatically over WebSocket once the backend is back.
+`make build` is also the fastest way to confirm the Go tree compiles after a refactor —
+the version is derived from `git describe` (a synthesized `v0.0.0-0-g<sha>` dev shape when
+there are no tags, which still passes the CLI version gate).
+
 **Worktrees:** every checkout shares one Postgres container; isolation is per-DB. In a
 git worktree, `make worktree-env` generates `.env.worktree` (unique DB name + ports), then
 `make setup-worktree` / `make start-worktree`. `make dev` auto-detects worktrees.
