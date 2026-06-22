@@ -26,10 +26,6 @@ export interface ChildProgress {
   total: number;
 }
 
-function formatDate(date: string): string {
-  return formatDateOnly(date, { month: "short", day: "numeric" }, "en-US");
-}
-
 function ListRowContent({
   issue,
   childProgress,
@@ -133,12 +129,12 @@ function ListRowContent({
           )}
           {showStartDate && (
             <span className="shrink-0 text-xs text-muted-foreground">
-              {formatDate(issue.start_date!)}
+              {formatDateOnly(issue.start_date!, { month: "short", day: "numeric" }, "en-US")}
             </span>
           )}
           {showDueDate && (
             <span className="shrink-0 text-xs text-muted-foreground">
-              {formatDate(issue.due_date!)}
+              {formatDateOnly(issue.due_date!, { month: "short", day: "numeric" }, "en-US")}
             </span>
           )}
           {showAssignee && (

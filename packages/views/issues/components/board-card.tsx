@@ -28,10 +28,6 @@ import { LabelChip } from "../../labels/label-chip";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { useT } from "../../i18n";
 
-function formatDate(date: string): string {
-  return formatDateOnly(date, { month: "short", day: "numeric" }, "en-US");
-}
-
 function descriptionPreview(markdown: string): string {
   return markdown
     .replace(/!file\[[^\]]*\]\([^)]*\)/g, "")
@@ -238,7 +234,7 @@ export const BoardCardContent = memo(function BoardCardContent({
                       trigger={
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <CalendarClock className="size-3" />
-                          {formatDate(issue.start_date!)}
+                          {formatDateOnly(issue.start_date!, { month: "short", day: "numeric" }, "en-US")}
                         </span>
                       }
                     />
@@ -246,7 +242,7 @@ export const BoardCardContent = memo(function BoardCardContent({
                 ) : (
                   <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                     <CalendarClock className="size-3" />
-                    {formatDate(issue.start_date!)}
+                    {formatDateOnly(issue.start_date!, { month: "short", day: "numeric" }, "en-US")}
                   </span>
                 )
               )}
@@ -265,7 +261,7 @@ export const BoardCardContent = memo(function BoardCardContent({
                           }`}
                         >
                           <CalendarDays className="size-3" />
-                          {formatDate(issue.due_date!)}
+                          {formatDateOnly(issue.due_date!, { month: "short", day: "numeric" }, "en-US")}
                         </span>
                       }
                     />
@@ -279,7 +275,7 @@ export const BoardCardContent = memo(function BoardCardContent({
                     }`}
                   >
                     <CalendarDays className="size-3" />
-                    {formatDate(issue.due_date!)}
+                    {formatDateOnly(issue.due_date!, { month: "short", day: "numeric" }, "en-US")}
                   </span>
                 )
               )}
