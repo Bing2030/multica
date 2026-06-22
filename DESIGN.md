@@ -5,10 +5,8 @@ end-to-end at the level of "what lives where and why," oriented to engineers joi
 codebase. For agent-usage guidance and conventions, see `CLAUDE.md`; for per-package
 detail, read the source.
 
-> Note: this document was generated from a structural scan of the repo as of
-> `chore/repo-simplify-moderate` / commit `7e47db7d`. It is a snapshot, not a living
-> contract — when code and this doc disagree, the code wins. Update this doc when you
-> make a change that moves a boundary described here.
+> Note: this document is a structural overview. When code and this doc disagree, the
+> code wins — update this doc when you make a change that moves a boundary described here.
 
 ---
 
@@ -23,9 +21,10 @@ first-class citizens." Built for 2–10 person AI-native teams.
 - Agents run against real coding-agent CLIs (Claude Code, Codex, Copilot, Gemini,
   Cursor, CodeBuddy, OpenCode, OpenClaw, Hermes, Kimi, Kiro, Pi, Antigravity) on a
   **daemon** that lives on the user's own machine, or in a managed **cloud runtime**.
-- Work is delivered through three surfaces: a **web app** (Next.js), a **desktop app**
-  (Electron, with tabbed multi-workspace navigation and a managed local daemon), and an
-  **archived/frozen mobile app** (Expo, source kept for reference).
+- Work is delivered through two surfaces: a **web app** (Next.js) and a **desktop app**
+  (Electron, with tabbed multi-workspace navigation and a managed local daemon). (A mobile
+  app formerly lived under `apps/mobile/`; it has been removed and is recoverable from
+  git history.)
 
 ### Goals / constraints that shaped the design
 
@@ -39,6 +38,51 @@ first-class citizens." Built for 2–10 person AI-native teams.
   `workspace_id`; membership checks gate access.
 - **Real-time by default.** WebSocket events keep the client cache fresh via
   invalidation — there is no polling.
+
+---
+
+## Quick start (development)
+
+**Prerequisites:** Go 1.26+, Node 22, pnpm 10, and Docker (for the shared PostgreSQL).
+
+```bash
+make dev
+```
+
+One command: copies `.env.example` → `.env` (generates `JWT_SECRET`), starts the shared
+`pgvector/pg17` Postgres container, installs deps, applies migrations, and runs the Go
+server + the Next.js web app in the foreground. Stop with **Ctrl-C**.
+
+- **Web:** http://localhost:3000 · **API:** http://localhost:8080 · **DB:** `multica` on localhost:5432
+- **First login:** enter your email. With no `RESEND_API_KEY`/SMTP set, the 6-digit code
+  is printed in the **backend logs** (or set `MULTICA_DEV_VERIFICATION_CODE` to pin it).
+- **Run an agent locally** (optional — the dev server is the control plane): start the
+  daemon against this server with `make daemon` (first `make cli ARGS="setup"` /
+  `make cli ARGS="auth login"` to authenticate and register a runtime). Details in
+  `CLI_AND_DAEMON.md`.
+
+What `make dev` automates, exposed as separate targets:
+
+```bash
+cp .env.example .env     # then set JWT_SECRET / RESEND_API_KEY as needed
+make setup               # pnpm install + ensure Postgres + migrate
+make start               # ensure Postgres + migrate + run server + web (foreground)
+make stop                # kill this checkout's backend + web
+make check               # typecheck + TS tests (Vitest) + Go tests + Playwright E2E
+make db-reset            # drop+recreate this checkout's DB and re-migrate (local only)
+```
+
+Other useful targets: `make server` (Go only), `pnpm dev:web` / `pnpm dev:desktop`
+(frontend only), `make build` (server/CLI/migrate binaries → `server/bin/`), `make sqlc`
+(regenerate DB code after editing `server/pkg/db/queries/*.sql`), `make cli ARGS="..."`
+(run the `multica` CLI from source).
+
+**Worktrees:** every checkout shares one Postgres container; isolation is per-DB. In a
+git worktree, `make worktree-env` generates `.env.worktree` (unique DB name + ports), then
+`make setup-worktree` / `make start-worktree`. `make dev` auto-detects worktrees.
+
+**Self-host (Docker — not for dev):** `make selfhost` (pull official GHCR images) or
+`make selfhost-build` (build from the checkout). See `SELF_HOSTING*.md`.
 
 ---
 
@@ -119,8 +163,7 @@ multica/
 ├── apps/
 │   ├── web/                # Next.js App Router (the browser app)
 │   ├── desktop/            # Electron app (electron-vite): main / preload / renderer / shared
-│   ├── docs/               # docs site (the conventions source of truth)
-│   └── mobile/             # ARCHIVED/frozen Expo app (not built/tested/CI'd)
+│   └── docs/               # docs site (the conventions source of truth)
 ├── packages/
 │   ├── core/               # headless business logic + shared Zustand stores + API client (zero react-dom)
 │   ├── ui/                 # atomic UI components over Base UI primitives (zero business logic)
@@ -286,10 +329,12 @@ the frontend invalidates the relevant TanStack Query (never writes to a store).
 
 `server/internal/storage` is local-filesystem only. Attachments write under
 `LOCAL_UPLOAD_DIR` (default `./data/uploads`) and are served from `/uploads/*` and
-`/api/attachments/{id}/content`. S3/CloudFront/SecretsManager were removed in
-`e3d2c2aa`; download mode (`auto`/`proxy`/`redirect`) and a signed-URL TTL are
-configurable. Download endpoints self-resolve the workspace from the attachment row
-and enforce membership inside the handler.
+`/api/attachments/{id}/content`. S3/CloudFront/SecretsManager were removed in `e3d2c2aa`;
+the multi-backend `Storage` interface now has a single implementation (`LocalStorage`).
+Downloads (`/api/attachments/{id}/download`) always **proxy** through the server — they
+stream via `Storage.GetReader` — so there is no presign/redirect mode or signed-URL TTL
+anymore. Download endpoints self-resolve the workspace from the attachment row and enforce
+membership inside the handler.
 
 ### 4.7 Auth
 
@@ -751,7 +796,7 @@ the metrics layer); the PostHog shipping client does not.
   so the bundled CLI always matches current Go source.
 - **Check.** `make check` = typecheck + TS unit (Vitest) + Go tests + Playwright E2E.
 - **CI** (`.github/workflows/ci.yml`): Node 22, Go 1.26.1, `pgvector/pgvector:pg17`
-  service. `mobile-verify.yml` is archived (mobile frozen). Desktop smoke build in CI.
+  service. Desktop smoke build in CI.
 - **Self-hosting.** `docker-compose.selfhost.yml` (+ `.build.yml` to build from
   checkout); `make selfhost` pulls official GHCR images or `make selfhost-build`
   builds locally; generates random `JWT_SECRET` + `POSTGRES_PASSWORD`.
@@ -778,9 +823,9 @@ the metrics layer); the PostHog shipping client does not.
 - **parse-don't-cast is the only defense for an installed-app architecture.** A CSR
   browser app can ship a fix in minutes; an Electron build on a laptop cannot. So
   every response is validated with a fallback and never throws into the UI.
-- **Internal packages + strict dependency direction** keep web and desktop sharing
-  one business layer with zero-config HMR and instant go-to-definition; mobile stays
-  independent (archived) and shares only types + pure functions.
+- **Internal packages + strict dependency direction** keep web and desktop sharing one
+  business layer with zero-config HMR and instant go-to-definition. (A mobile app formerly
+  shared types + pure functions only; it has been removed.)
 - **One reserved-slug list, generated.** `server/internal/handler/reserved_slugs.json`
   is the source; `packages/core/paths/reserved-slugs.ts` is generated from it and CI
   fails on drift. Global routes use a single word or `/{noun}/{verb}` pair so reserving
