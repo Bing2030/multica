@@ -295,7 +295,7 @@ func locateMarkerBlock(content string) (start, end int, found bool) {
 //     PR #3438 review feedback.
 //
 // Required for the local_directory flow (WorkDir is the user's own repo):
-// without this pass, a manual `claude` / `codex` / `gemini` run started by
+// without this pass, a manual `claude` / `codex` / `opencode` run started by
 // the user inside the same directory after a Multica task would pick up
 // the stale brief and act on the previous task's issue id, trigger
 // comment id, and reply rules. Cloud workspace runs never trigger this
