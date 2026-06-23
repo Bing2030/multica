@@ -68,18 +68,18 @@ type AgentResponse struct {
 	// means "no override" — the CLI loads its own default. Only the path is
 	// stored; the file's contents stay on disk, so (unlike mcp_config) this
 	// field carries no secrets and is never redacted. Local runtime only.
-	SettingsPath string `json:"settings_path,omitempty"`
-	OwnerID       *string             `json:"owner_id"`
-	Skills        []AgentSkillSummary `json:"skills"`
-	CreatedAt     string              `json:"created_at"`
-	UpdatedAt     string              `json:"updated_at"`
-	ArchivedAt    *string             `json:"archived_at"`
-	ArchivedBy    *string             `json:"archived_by"`
+	SettingsPath string              `json:"settings_path,omitempty"`
+	OwnerID      *string             `json:"owner_id"`
+	Skills       []AgentSkillSummary `json:"skills"`
+	CreatedAt    string              `json:"created_at"`
+	UpdatedAt    string              `json:"updated_at"`
+	ArchivedAt   *string             `json:"archived_at"`
+	ArchivedBy   *string             `json:"archived_by"`
 }
 
 // runtimeConfigGatewayTokenMask is the placeholder the API substitutes for
-// any non-empty `runtime_config.gateway.token` (openclaw gateway mode, issue
-// #3260). The token is a bearer credential; surfacing the real value through
+// any non-empty `runtime_config.gateway.token` (gateway mode, issue #3260).
+// The token is a bearer credential; surfacing the real value through
 // GET responses would let anyone with read access to the agent dump the
 // gateway secret. The mask is a sentinel — when the UI later PATCHes the
 // agent and submits the same mask verbatim under that field, the update
@@ -156,7 +156,7 @@ func agentToResponse(a db.Agent) AgentResponse {
 
 // maskGatewayToken replaces runtime_config.gateway.token with the public
 // mask sentinel when a non-empty value is present. No-op for any other
-// shape so non-openclaw / non-gateway agents pass through untouched.
+// shape so non-gateway agents pass through untouched.
 func maskGatewayToken(rc any) {
 	root, ok := rc.(map[string]any)
 	if !ok {
@@ -364,9 +364,9 @@ type TaskAgentData struct {
 	// --settings, OpenCode → OPENCODE_CONFIG). Empty = no override.
 	SettingsPath string `json:"settings_path,omitempty"`
 	// RuntimeConfig is the agent's saved runtime_config JSON as-is. The
-	// daemon decodes it per-provider — e.g. the openclaw backend reads
-	// `mode` + `gateway.*` to choose between embedded and gateway routing
-	// (issue #3260). Other providers ignore the payload entirely. Sent
+	// daemon decodes it per-provider (e.g. a gateway-mode backend reads
+	// `mode` + `gateway.*` to choose between embedded and gateway routing,
+	// issue #3260). Other providers ignore the payload entirely. Sent
 	// raw so the daemon can evolve its schema without a server roundtrip.
 	RuntimeConfig json.RawMessage `json:"runtime_config,omitempty"`
 }

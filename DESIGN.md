@@ -401,20 +401,17 @@ type Backend interface {
 }
 ```
 
-`agent.New(agentType, Config)` dispatches to one of 13 backends (claude, codebuddy,
-codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro,
-antigravity). Each backend wraps a vendor CLI's native streaming protocol
-(stream-json, ACP, app-server stdio, etc.) and emits a unified `Message` stream
-(text/thinking/tool-use/tool-result/status/error/log) plus a final `Result`
+`agent.New(agentType, Config)` dispatches to one of 6 backends (claude, codex,
+copilot, opencode, pi, cursor). Each backend wraps a vendor CLI's native streaming
+protocol (stream-json, ACP, app-server stdio, etc.) and emits a unified `Message`
+stream (text/thinking/tool-use/tool-result/status/error/log) plus a final `Result`
 (completed/failed/aborted/timeout/cancelled + per-model `TokenUsage`). `Session` =
 `Messages <-chan Message` + `Result <-chan Result`.
 
 `ExecOptions` carries: `Cwd` (isolated workdir), `Model`, `SystemPrompt` (only for
-providers that can't load per-task context files from cwd — openclaw/kiro/kimi get the
-runtime brief inlined; hermes deliberately ignores it and loads AGENTS.md itself),
+providers that can pass or safely inline developer/system instructions),
 `ThreadName`, `Timeout` / `SemanticInactivityTimeout`, `ResumeSessionID`,
-`ExtraArgs`/`CustomArgs`, `McpConfig`, `ThinkingLevel`, `SettingsPath`,
-`OpenclawMode`.
+`ExtraArgs`/`CustomArgs`, `McpConfig`, `ThinkingLevel`, `SettingsPath`.
 
 ### 5.3 Task execution flow — `server/internal/daemon/daemon.go`
 

@@ -2652,7 +2652,7 @@ func TestClaimTask_IssuePriorSessionRuntimeGuard(t *testing.T) {
 	ctx := context.Background()
 
 	agentID, runtimeID, daemonID := createRuntimeGuardAgent(t, ctx)
-	oldRuntimeID := createRuntimeGuardRuntime(t, ctx, "kimi")
+	oldRuntimeID := createRuntimeGuardRuntime(t, ctx, "claude")
 
 	var skipIssueID string
 	if err := testPool.QueryRow(ctx, `
@@ -2841,7 +2841,7 @@ func TestClaimTask_ChatPriorSessionRuntimeGuard(t *testing.T) {
 	ctx := context.Background()
 
 	agentID, runtimeID, daemonID := createRuntimeGuardAgent(t, ctx)
-	oldRuntimeID := createRuntimeGuardRuntime(t, ctx, "kimi")
+	oldRuntimeID := createRuntimeGuardRuntime(t, ctx, "claude")
 
 	var skipSessionID string
 	if err := testPool.QueryRow(ctx, `

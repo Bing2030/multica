@@ -126,20 +126,16 @@ describe("AgentOverviewPane MCP tab visibility", () => {
     ["Claude", "claude"],
     ["Codex", "codex"],
     ["Cursor", "cursor"],
-    ["Hermes", "hermes"],
-    ["Kimi", "kimi"],
-    ["Kiro", "kiro"],
     ["OpenCode", "opencode"],
-    ["OpenClaw", "openclaw"],
   ])("renders the MCP tab when the agent runs on the %s runtime", (_label, provider) => {
     renderPane([makeRuntime(provider)]);
     expect(screen.getByRole("button", { name: /^MCP$/i })).toBeInTheDocument();
   });
 
   it("hides the MCP tab for providers whose backend does not read mcp_config", () => {
-    // Saving an MCP config on e.g. Gemini would be a silent no-op at run
+    // Saving an MCP config on e.g. Pi would be a silent no-op at run
     // time — that's the bug this hiding logic is meant to prevent.
-    renderPane([makeRuntime("gemini")]);
+    renderPane([makeRuntime("pi")]);
     expect(
       screen.queryByRole("button", { name: /^MCP$/i }),
     ).not.toBeInTheDocument();

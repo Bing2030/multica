@@ -100,7 +100,7 @@ func TestExtractVersionLine(t *testing.T) {
 			raw:  "codex-cli 0.118.0\n",
 			want: "codex-cli 0.118.0",
 		},
-		// Reproduces #2516: gemini's Windows shim emits `chcp` output to stdout
+		// Reproduces #2516: a Windows CLI shim emits `chcp` output to stdout
 		// before the real version. The chcp line has no dotted-number form,
 		// so the semver scan skips it and picks up "0.42.0" from the next line.
 		{

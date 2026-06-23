@@ -31,7 +31,7 @@ func TestMaskGatewayTokenSkipsEmptyToken(t *testing.T) {
 	t.Parallel()
 
 	// host+port-only configs (token still inherited from the user's local
-	// openclaw.json) must not surface a misleading "***" placeholder.
+	// runtime config) must not surface a misleading "***" placeholder.
 	rc := map[string]any{
 		"gateway": map[string]any{
 			"host": "gw.internal",

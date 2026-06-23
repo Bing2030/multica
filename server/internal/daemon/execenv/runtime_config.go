@@ -12,7 +12,7 @@ import (
 )
 
 // runtimeMarkerBegin and runtimeMarkerEnd delimit the Multica-managed brief
-// inside the runtime config file (CLAUDE.md / AGENTS.md / GEMINI.md). The
+// inside the runtime config file (CLAUDE.md / AGENTS.md). The
 // markers exist so writeRuntimeConfigFile can:
 //
 //   - preserve user-authored content in the same file (the user's repo may
@@ -152,14 +152,8 @@ func formatProjectResource(r ProjectResourceForEnv) string {
 // For Codex:    writes {workDir}/AGENTS.md  (skills discovered natively via CODEX_HOME)
 // For Copilot:  writes {workDir}/AGENTS.md  (skills discovered natively from .github/skills/)
 // For OpenCode: writes {workDir}/AGENTS.md  (skills discovered natively from .opencode/skills/)
-// For OpenClaw: writes {workDir}/AGENTS.md  (skills discovered natively from {workDir}/skills/ via per-task openclaw-config.json that pins agents.defaults.workspace)
-// For Hermes:   writes {workDir}/AGENTS.md  (skills fall back to .agent_context/skills/; AGENTS.md points there)
-// For Gemini:   writes {workDir}/GEMINI.md  (discovered natively by the Gemini CLI)
 // For Pi:       writes {workDir}/AGENTS.md  (skills discovered natively from .pi/skills/)
 // For Cursor:   writes {workDir}/AGENTS.md  (skills discovered natively from .cursor/skills/)
-// For Kimi:        writes {workDir}/AGENTS.md  (Kimi Code CLI reads AGENTS.md natively; skills auto-discovered from project skills dirs)
-// For Kiro:        writes {workDir}/AGENTS.md  (Kiro CLI reads AGENTS.md natively; skills auto-discovered from project skills dirs)
-// For Antigravity: writes {workDir}/AGENTS.md  (agy CLI reads AGENTS.md natively; skills discovered natively from .agents/skills/ — see https://antigravity.google/docs/gcli-migration)
 func InjectRuntimeConfig(workDir, provider string, ctx TaskContextForEnv) (string, error) {
 	content := buildMetaSkillContent(provider, ctx)
 	path := runtimeConfigPath(workDir, provider)
@@ -177,12 +171,10 @@ func InjectRuntimeConfig(workDir, provider string, ctx TaskContextForEnv) (strin
 // added to one side cannot drift past the other.
 func runtimeConfigPath(workDir, provider string) string {
 	switch provider {
-	case "claude", "codebuddy":
+	case "claude":
 		return filepath.Join(workDir, "CLAUDE.md")
-	case "codex", "copilot", "opencode", "openclaw", "hermes", "pi", "cursor", "kimi", "kiro", "antigravity":
+	case "codex", "copilot", "opencode", "pi", "cursor":
 		return filepath.Join(workDir, "AGENTS.md")
-	case "gemini":
-		return filepath.Join(workDir, "GEMINI.md")
 	default:
 		return ""
 	}
@@ -207,7 +199,7 @@ func runtimeConfigPath(workDir, provider string) string {
 //     separator established by the first inject) is preserved verbatim.
 //
 // The previous implementation called os.WriteFile unconditionally, which
-// silently truncated a repository's CLAUDE.md / AGENTS.md / GEMINI.md the
+// silently truncated a repository's CLAUDE.md / AGENTS.md the
 // first time the agent was pointed at the user's own directory via the
 // local_directory project resource flow. See MUL-2753.
 func writeRuntimeConfigFile(path, brief string) error {
@@ -303,7 +295,7 @@ func locateMarkerBlock(content string) (start, end int, found bool) {
 //     PR #3438 review feedback.
 //
 // Required for the local_directory flow (WorkDir is the user's own repo):
-// without this pass, a manual `claude` / `codex` / `gemini` run started by
+// without this pass, a manual `claude` / `codex` / `opencode` run started by
 // the user inside the same directory after a Multica task would pick up
 // the stale brief and act on the previous task's issue id, trigger
 // comment id, and reply rules. Cloud workspace runs never trigger this
@@ -709,23 +701,13 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 	if len(ctx.AgentSkills) > 0 {
 		b.WriteString("## Skills\n\n")
 		switch provider {
-		case "claude", "codebuddy":
-			// Claude/CodeBuddy discovers skills natively from .claude/skills/ — just list names.
+		case "claude":
+			// Claude discovers skills natively from .claude/skills/ — just list names.
 			b.WriteString("You have the following skills installed (discovered automatically):\n\n")
-		case "codex", "copilot", "opencode", "openclaw", "pi", "cursor", "kimi", "kiro", "antigravity":
-			// Codex, Copilot, OpenCode, OpenClaw, Pi, Cursor, Kimi, Kiro, and
-			// Antigravity discover skills natively from their respective paths.
-			// For OpenClaw, the daemon also writes a per-task openclaw-config.json
-			// (exported via OPENCLAW_CONFIG_PATH) that pins agents.defaults.workspace
-			// to the task workdir so the CLI's scanner picks up {workDir}/skills/.
-			// Antigravity inherits Gemini CLI's workspace skill layout —
-			// {workDir}/.agents/skills/ — see resolveSkillsDir.
+		case "codex", "copilot", "opencode", "pi", "cursor":
+			// Codex, Copilot, OpenCode, Pi, and Cursor discover skills
+			// natively from their respective paths (see resolveSkillsDir).
 			b.WriteString("You have the following skills installed (discovered automatically):\n\n")
-		case "gemini", "hermes":
-			// Gemini reads GEMINI.md directly. Hermes has no native skill
-			// discovery path wired up in resolveSkillsDir; both fall back to
-			// referencing the files explicitly under .agent_context/skills/.
-			b.WriteString("Detailed skill instructions are in `.agent_context/skills/`. Each subdirectory contains a `SKILL.md`.\n\n")
 		default:
 			b.WriteString("Detailed skill instructions are in `.agent_context/skills/`. Each subdirectory contains a `SKILL.md`.\n\n")
 		}
@@ -733,8 +715,9 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 			// Emit the skill's one-line description alongside its name so the
 			// brief carries a "when to load" trigger signal. Claude-family
 			// providers get this natively from frontmatter discovery; providers
-			// without native discovery (hermes/default) only ever see this
-			// list, so a bare name gives them no signal for on-demand loading.
+			// without native discovery (the default fallback) only ever see
+			// this list, so a bare name gives them no signal for on-demand
+			// loading.
 			if desc := strings.TrimSpace(skill.Description); desc != "" {
 				fmt.Fprintf(&b, "- **%s** — %s\n", skill.Name, desc)
 			} else {

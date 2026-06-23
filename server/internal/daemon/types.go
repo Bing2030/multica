@@ -133,8 +133,8 @@ type AgentData struct {
 	SettingsPath string `json:"settings_path,omitempty"`
 	// RuntimeConfig is the per-provider runtime_config JSON as stored on
 	// the agent record, forwarded verbatim by the claim endpoint. The
-	// daemon decodes provider-specific fields (e.g. openclaw mode +
-	// gateway endpoint, see issue #3260); other backends ignore it.
+	// daemon decodes provider-specific fields (e.g. gateway mode + gateway
+	// endpoint, see issue #3260); other backends ignore it.
 	RuntimeConfig json.RawMessage `json:"runtime_config,omitempty"`
 }
 

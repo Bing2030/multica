@@ -103,14 +103,13 @@ Yes — as long as the AI coding tool supports session resumption.
 
 Multica pins the session ID **twice** during a task: once at the start (when the AI tool returns its first system message), and once at the end (on completion or failure). The first lets the daemon recover if it crashes mid-run; the second is reserved for the next **automatic retry**, where that ID is passed back so the agent can pick up the previous conversation and file state. **Manual rerun deliberately skips this** and starts a fresh session — see [Manual rerun vs. automatic retry](#manual-rerun-vs-automatic-retry).
 
-But **which AI coding tools actually support this** varies a lot:
+All 6 supported tools implement session resumption, though the mechanics differ per tool (Pi, for example, uses a session file path as its resume id rather than a string id):
 
-- ✅ **Real support** — Antigravity, Claude Code, Codex, Copilot, Cursor, Hermes, Kimi, Kiro CLI, OpenCode, OpenClaw, Pi
-- ❌ **No support** — Gemini
+- ✅ **Real support** — Claude Code, Codex, Copilot, Cursor, OpenCode, Pi
 
 See [Providers Matrix → Session resumption](/providers#session-resumption-who-really-supports-it).
 
 ## Next
 
-- [Providers Matrix](/providers) — capability differences across the 12 AI coding tools (including the exact session-resumption status)
+- [Providers Matrix](/providers) — capability differences across the 6 AI coding tools (including the exact session-resumption status)
 - [Assigning issues to agents](/assigning-issues) / [@-mentioning agents in comments](/mentioning-agents) / [Chat](/chat) / [Autopilots](/autopilots) — the four ways to trigger a task

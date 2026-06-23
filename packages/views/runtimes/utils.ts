@@ -251,9 +251,9 @@ const MODEL_PRICING: Record<
 // Resolve a model string to its pricing tier. Exact match, with four
 // tolerances applied in order:
 //
-//  1. Provider-prefixed IDs (`anthropic/claude-opus-4.7` from openclaw /
-//     opencode) — the `<provider>/` segment is routing metadata, not part
-//     of the SKU, so we strip it before lookup.
+//  1. Provider-prefixed IDs (`anthropic/claude-opus-4.7` from opencode) —
+//     the `<provider>/` segment is routing metadata, not part of the SKU,
+//     so we strip it before lookup.
 //  2. Anthropic dot↔dash normalization — Claude Code reports
 //     `claude-opus-4-7`, GitHub Copilot reports `claude-opus-4.7`. Same
 //     SKU, two transports. We canonicalize `claude-*` IDs to the dashed

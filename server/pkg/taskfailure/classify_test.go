@@ -110,8 +110,8 @@ func TestClassifyRules(t *testing.T) {
 		{"404 page not found", "404 page not found", ReasonAgentModelNotFoundOrUnavailable},
 
 		// 9. Empty / unparseable output.
-		{"returned empty output", "openclaw returned empty output", ReasonAgentEmptyOrUnparseableOutput},
-		{"returned no parseable output", "kimi returned no parseable output", ReasonAgentEmptyOrUnparseableOutput},
+		{"returned empty output", "claude returned empty output", ReasonAgentEmptyOrUnparseableOutput},
+		{"returned no parseable output", "codex returned no parseable output", ReasonAgentEmptyOrUnparseableOutput},
 
 		// 10. Agent timeout.
 		{"timed out after", "claude timed out after 2h0m0s", ReasonAgentTimeout},

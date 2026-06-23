@@ -147,14 +147,8 @@ var allFileBasedProviders = []string{
 	"codex",
 	"copilot",
 	"opencode",
-	"openclaw",
-	"hermes",
 	"pi",
 	"cursor",
-	"kimi",
-	"kiro",
-	"antigravity",
-	"gemini",
 }
 
 // TestPrepareThenCleanupSidecarsRoundTripEmptyWorkdir is the headline
@@ -226,14 +220,8 @@ func TestPrepareThenCleanupSidecarsPreservesUserSkillSibling(t *testing.T) {
 		{"claude", filepath.Join(".claude", "skills", "my-own"), "SKILL.md"},
 		{"copilot", filepath.Join(".github", "skills", "my-own"), "SKILL.md"},
 		{"opencode", filepath.Join(".opencode", "skills", "my-own"), "SKILL.md"},
-		{"openclaw", filepath.Join("skills", "my-own"), "SKILL.md"},
 		{"pi", filepath.Join(".pi", "skills", "my-own"), "SKILL.md"},
 		{"cursor", filepath.Join(".cursor", "skills", "my-own"), "SKILL.md"},
-		{"kimi", filepath.Join(".kimi", "skills", "my-own"), "SKILL.md"},
-		{"kiro", filepath.Join(".kiro", "skills", "my-own"), "SKILL.md"},
-		{"antigravity", filepath.Join(".agents", "skills", "my-own"), "SKILL.md"},
-		{"hermes", filepath.Join(".agent_context", "skills", "my-own"), "SKILL.md"},
-		{"gemini", filepath.Join(".agent_context", "skills", "my-own"), "SKILL.md"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -293,9 +281,6 @@ func TestPrepareThenCleanupSidecarsPreservesUnrelatedUserFiles(t *testing.T) {
 		{"opencode", filepath.Join(".opencode", "config.json")},
 		{"pi", filepath.Join(".pi", "config.toml")},
 		{"cursor", filepath.Join(".cursor", "settings.json")},
-		{"kimi", filepath.Join(".kimi", "config.json")},
-		{"kiro", filepath.Join(".kiro", "config.json")},
-		{"antigravity", filepath.Join(".agents", "config.json")},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -617,14 +602,8 @@ var sameSlugSkillProviderCases = []struct {
 	{"claude", filepath.Join(".claude", "skills", "issue-review")},
 	{"copilot", filepath.Join(".github", "skills", "issue-review")},
 	{"opencode", filepath.Join(".opencode", "skills", "issue-review")},
-	{"openclaw", filepath.Join("skills", "issue-review")},
 	{"pi", filepath.Join(".pi", "skills", "issue-review")},
 	{"cursor", filepath.Join(".cursor", "skills", "issue-review")},
-	{"kimi", filepath.Join(".kimi", "skills", "issue-review")},
-	{"kiro", filepath.Join(".kiro", "skills", "issue-review")},
-	{"antigravity", filepath.Join(".agents", "skills", "issue-review")},
-	{"hermes", filepath.Join(".agent_context", "skills", "issue-review")},
-	{"gemini", filepath.Join(".agent_context", "skills", "issue-review")},
 }
 
 // TestPrepareThenCleanupSidecarsSameSlugCollisionPerProvider is the

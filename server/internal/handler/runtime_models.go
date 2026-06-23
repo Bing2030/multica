@@ -43,9 +43,8 @@ const (
 
 // ModelListRequest represents a pending or completed model list request.
 // Supported is false when the provider ignores per-agent model
-// selection entirely (currently: hermes). The UI uses this to
-// disable its dropdown rather than silently accepting a value the
-// backend will drop.
+// selection entirely. The UI uses this to disable its dropdown rather
+// than silently accepting a value the backend will drop.
 //
 // RunStartedAt is set when PopPending claims the request. It is
 // `json:"-"` because it's a server-side bookkeeping field — the UI only
@@ -64,8 +63,8 @@ type ModelListRequest struct {
 
 // ModelEntry mirrors agent.Model for the wire. `Default` tags the
 // model the runtime advertises as its preferred pick (e.g. Claude
-// Code's shipped default, or hermes' currentModelId) so the UI can
-// badge it — don't drop it when marshalling.
+// Code's shipped default) so the UI can badge it — don't drop it
+// when marshalling.
 //
 // `Thinking` carries the per-model reasoning-effort catalog discovered
 // by the daemon for runtimes that support it (claude, codex — see
