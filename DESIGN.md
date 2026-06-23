@@ -170,12 +170,11 @@ multica/
 │   │   ├── cloudruntime/   # SaaS fleet proxy client
 │   │   ├── storage/        # local-only file storage (S3/CloudFront removed)
 │   │   ├── scheduler/      # DB-backed distributed job runner (sys_cron_executions)
-│   │   ├── agenttmpl/      # agent templates catalog
 │   │   ├── skill/          # structured skills
 │   │   ├── daemon/         # daemon-side runtime (the CLI's daemon subcommand, agent execution)
 │   │   └── …               # issueguard, issueposition, logger, taskusagebackfill, util, etc.
 │   ├── pkg/
-│   │   ├── agent/          # unified Backend interface over 13 coding-agent CLIs + version gating
+│   │   ├── agent/          # unified Backend interface over 6 coding-agent CLIs + version gating
 │   │   ├── db/             # sqlc config + queries/ + generated/ (the DB access layer)
 │   │   ├── protocol/       # WS event name + message constants (shared by server + clients)
 │   │   ├── redact/, taskfailure/   # cross-cutting helpers
@@ -284,7 +283,7 @@ Route groups:
     task-token actors), `/api/lark/binding/redeem`.
   - **Workspace-scoped** (`middleware.RequireWorkspaceMember`): the bulk of the
     product — issues, tasks, labels, projects, squads, autopilots, pins, attachments,
-    comments, agents, agent-templates, skills, dashboard, runtimes, cloud-runtime
+    comments, agents, skills, dashboard, runtimes, cloud-runtime
     fleet proxy, chat, inbox, notification-preferences.
 
 ### 4.3 Handler + services — `server/internal/handler/handler.go`
@@ -501,16 +500,13 @@ A **squad** is a group of agents (`squad` + `squad_member` tables) with member r
 the squad **leader** is the runtime that autopilot/chained runs dispatch to.
 Squad-member status is derived from each agent's most recent terminal task.
 
-### 5.8 Skills + agent templates
+### 5.8 Skills
 
 - **Skills** (`skill` + `skill_file`): structured, versioned instruction bundles an
   agent loads. Built-in skills live in `server/internal/service/builtin_skills/*` as
   **source-traced contracts** — each ships a `SKILL.md` + `references/*-source-map.md`
   that pin the CLI commands/flags/API fields the skill teaches. When code moves, the
   skill must move with it in the same PR or it silently teaches stale behavior.
-- **Agent templates** (`agenttmpl`): pre-configured instructions + skill refs; picking
-  one imports the referenced skills (find-or-create by name) and creates the agent with
-  the template's instructions in one transaction.
 
 ---
 

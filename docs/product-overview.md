@@ -112,7 +112,7 @@ Claude Code · Codex · OpenClaw · OpenCode · Hermes · Gemini · Pi · Cursor
 | **Activity 活动 / Timeline 时间线** | 所有关键动作的审计记录。issue 详情页的"时间线"就是这个表的数据 | `activity_log` |
 | **Pin 固定** | 个人侧边栏快捷方式，把常用的 issue/project 置顶 | `pinned_item` |
 | **Reaction 反应** | Issue 或评论上的 emoji 反应，跟 GitHub/Slack 一样 | `issue_reaction`, `comment_reaction` |
-| **Attachment 附件** | Issue 或评论的文件上传，支持 S3/CloudFront 或本地存储 | `attachment` |
+| **Attachment 附件** | Issue 或评论的文件上传，本地磁盘存储（自托管） | `attachment` |
 | **Personal Access Token (PAT)** | 用户级 API token，CLI 和自动化用。`mul_` 前缀 | `personal_access_token` |
 | **Daemon Token** | 单 workspace 单 daemon 的 token。`mdt_` 前缀，比 PAT 权限范围更小 | `daemon_token` |
 | **Session Resumption 会话恢复** | 同一对 (agent, issue) 的下一次任务会自动复用上次 Claude Code 的 `session_id` 和工作目录——历史对话、文件状态都保留 | `agent_task_queue.session_id`, `.work_dir` |
@@ -196,7 +196,7 @@ Issue 对应的概念在 Linear 叫 Issue、在 Jira 叫 Ticket、在 GitHub 叫
 
 - 拖拽上传或按钮上传
 - 图片内联预览
-- 存储后端：S3/CloudFront 或本地磁盘（自托管）
+- 存储后端：本地磁盘（自托管）
 
 #### 产品里的位置
 
@@ -291,7 +291,7 @@ Agent 是 Multica 的灵魂。几乎所有功能都围绕"如何让一个 agent 
 
 `multica` CLI 在用户的机器上启动一个后台进程（macOS launchd / Linux systemd / Windows 服务风格），它：
 
-1. **自动探测** `$PATH` 上安装的 coding CLI（`claude`, `codex`, `opencode`, `openclaw`, `hermes`, `gemini`, `pi`, `cursor-agent`, `kimi`, `kiro-cli`）
+1. **自动探测** `$PATH` 上安装的 coding CLI（`claude`, `codex`, `opencode`, `copilot`, `pi`, `cursor-agent`）
 2. 向 server **注册** 为一组 runtime（一个 CLI = 一个 runtime）
 3. 每 3 秒 **轮询** 一次 server，有任务就认领
 4. 每 15 秒 **心跳**（keepalive），报告自己还活着

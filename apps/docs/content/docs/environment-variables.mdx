@@ -76,39 +76,20 @@ Full setup (including Google Cloud Console steps) is in [Sign-in and signup conf
 
 ## File storage configuration
 
-Multica stores user-uploaded attachments (images and files in comments). **S3 is preferred**; if S3 is not configured, it falls back to local disk.
+Multica stores user-uploaded attachments (images and files in comments) on the **local filesystem** of the server host. There is no object-store backend: `S3_*`, `AWS_*`, `CLOUDFRONT_*`, and `ATTACHMENT_DOWNLOAD_*` variables from older versions are no longer read and have no effect.
 
-### S3 / S3-compatible storage
-
-| Variable | Default | Description |
-|---|---|---|
-| `S3_BUCKET` | empty | **Bucket name only** (for example `my-bucket`). Do **not** include the `.s3.<region>.amazonaws.com` suffix — the server constructs the public host from `S3_BUCKET` + `S3_REGION`. Setting this enables S3 storage |
-| `S3_REGION` | `us-west-2` | AWS region. Must match the bucket's actual region — it is used both for SDK signing and for building the public URL |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | empty | Static credentials. When both are unset, the AWS SDK default credential chain is used (IAM role / environment credentials) |
-| `AWS_ENDPOINT_URL` | empty | Custom S3-compatible endpoint (for example [MinIO](https://min.io/)). Setting this switches to path-style URLs |
-| `ATTACHMENT_DOWNLOAD_MODE` | `auto` | Attachment download path: `auto`, `cloudfront`, `presign`, or `proxy`. In `auto`, CloudFront is preferred when fully configured; internal/private endpoint hosts use the server proxy; public S3-compatible endpoints use presigned GET URLs when supported |
-| `ATTACHMENT_DOWNLOAD_URL_TTL` | `30m` | TTL for CloudFront signed URLs and S3 presigned download URLs. Accepts Go duration strings |
-
-**When `S3_BUCKET` is unset**: the server logs `"S3_BUCKET not set, cloud upload disabled"` at startup, and all uploads fall back to local disk.
-
-**Stored object URLs** are constructed in this order of priority:
-
-1. `https://<CLOUDFRONT_DOMAIN>/<key>` if `CLOUDFRONT_DOMAIN` is set.
-2. `<AWS_ENDPOINT_URL>/<S3_BUCKET>/<key>` (path-style) if `AWS_ENDPOINT_URL` is set.
-3. `https://<S3_BUCKET>.s3.<S3_REGION>.amazonaws.com/<key>` (virtual-hosted-style). When `S3_BUCKET` contains dots, the server falls back to `https://s3.<S3_REGION>.amazonaws.com/<S3_BUCKET>/<key>` (path-style) because the AWS-issued wildcard TLS certificate does not validate dotted bucket hosts.
-
-API `download_url` values use `GET /api/attachments/{id}/download` unless CloudFront signing is configured. The endpoint redirects to CloudFront/S3 presigned URLs when safe, or streams through the server for private/internal endpoints such as `http://rustfs:9000`. For Docker/VPC-only object stores, set `ATTACHMENT_DOWNLOAD_MODE=proxy` if auto detection is not conservative enough for your network.
-
-### Local disk (when S3 is not configured)
+### Local disk
 
 | Variable | Default | Description |
 |---|---|---|
-| `LOCAL_UPLOAD_DIR` | `./data/uploads` | Local storage directory |
-| `LOCAL_UPLOAD_BASE_URL` | empty (returns relative paths) | Public base URL — leave unset and the frontend can't resolve a full URL for attachments |
+| `LOCAL_UPLOAD_DIR` | `./data/uploads` | Directory where uploaded files are written. The server creates it at startup if it does not exist |
+| `LOCAL_UPLOAD_BASE_URL` | empty | Optional public base URL that serves `LOCAL_UPLOAD_DIR` — for example `http://localhost:8080` when the same origin serves `/uploads/*`, or the URL of a reverse proxy that serves the directory. When set, attachment content URLs are emitted as absolute URLs against this base; when unset, they are site-relative (`/uploads/...`) |
 
-### CloudFront (optional)
+### How attachment URLs resolve
 
-If you front S3 with CloudFront, three variables apply: `CLOUDFRONT_DOMAIN`, `CLOUDFRONT_KEY_PAIR_ID`, `CLOUDFRONT_PRIVATE_KEY` (or `CLOUDFRONT_PRIVATE_KEY_SECRET` to read from Secrets Manager). Skip them if you don't use CloudFront — they don't conflict with S3 configuration.
+Uploads are served from `/uploads/<key>` under the server origin (or under `LOCAL_UPLOAD_BASE_URL` when configured). Every attachment also has a stable, server-proxied download endpoint — `GET /api/attachments/{id}/download` — which streams the file on each request with no signed URL and no TTL. API `download_url` values use this endpoint, anchored on `MULTICA_PUBLIC_URL` so they resolve for clients that don't share the document origin (Desktop, mobile webview).
+
+URLs persisted into markdown bodies follow the same rule: when `LOCAL_UPLOAD_BASE_URL` is configured (uploads served from a known public host) and the stored URL is an absolute, unsigned `http(s)` URL, that URL is persisted directly; otherwise the server-proxied `/api/attachments/{id}/download` path is used.
 
 ### Cookie domain
 
@@ -222,13 +203,14 @@ The [GitHub PR ↔ issue integration](/github-integration) needs two variables. 
 
 ## Usage analytics
 
-By default, the server reports to Multica's official PostHog instance. To opt out, set `ANALYTICS_DISABLED=true`.
+Product analytics are captured **client-side** by posthog-js in the browser / Electron client. The server does not capture events itself — it only exposes the PostHog key and host to clients via `/api/config`. Leave `POSTHOG_API_KEY` empty for local dev or self-hosted instances and no client-side capture runs.
 
 | Variable | Default | Description |
 |---|---|---|
-| `ANALYTICS_DISABLED` | `false` | Set `true` to disable backend analytics entirely |
-| `POSTHOG_API_KEY` | built-in default key | Set when pointing at your own PostHog instance |
-| `POSTHOG_HOST` | `https://us.i.posthog.com` | Change to your own host if you self-host PostHog |
+| `POSTHOG_API_KEY` | empty | PostHog project key the client uses to initialize posthog-js. Empty disables client-side capture |
+| `POSTHOG_HOST` | `https://us.i.posthog.com` | PostHog host the client reports to. Change to your own host if you self-host PostHog |
+| `ANALYTICS_ENVIRONMENT` | derived from `APP_ENV` | Override for the `environment` PostHog event property (normalizes to `production` / `staging` / `dev`) |
+| `ANALYTICS_DISABLED` | `false` | Set `true` to suppress client-side capture even when `POSTHOG_API_KEY` is set (CI / opt-out) |
 
 ## Next
 
