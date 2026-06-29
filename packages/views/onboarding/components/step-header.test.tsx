@@ -31,17 +31,17 @@ describe("StepHeader", () => {
   });
 
   it("shows 'Step N of M' text matching the current step's position", () => {
-    // workspace is index 3 (after source/role/use_case) → Step 4.
+    // workspace is index 0 (the questionnaire steps were removed) → Step 1.
     render(<StepHeader currentStep="workspace" />);
     expect(
-      screen.getByText(`Step 4 of ${ONBOARDING_STEP_ORDER.length}`),
+      screen.getByText(`Step 1 of ${ONBOARDING_STEP_ORDER.length}`),
     ).toBeInTheDocument();
   });
 
   it("sets accessible progressbar attrs", () => {
     render(<StepHeader currentStep="runtime" />);
     const bar = screen.getByRole("progressbar");
-    expect(bar).toHaveAttribute("aria-valuenow", "5"); // runtime is index 4 → step 5
+    expect(bar).toHaveAttribute("aria-valuenow", "2"); // runtime is index 1 → step 2
     expect(bar).toHaveAttribute("aria-valuemax", String(ONBOARDING_STEP_ORDER.length));
   });
 

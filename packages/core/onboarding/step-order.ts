@@ -14,15 +14,18 @@ import type { OnboardingStep } from "./types";
  * for the same reason — users shouldn't think of reading the intro
  * as progress toward completing setup.
  *
+ * The "Quick question" questionnaire steps (source / role / use_case)
+ * were removed to shorten the flow — onboarding now goes straight from
+ * Welcome to Workspace. The QuestionnaireAnswers type + saveQuestionnaire
+ * persist call are retained for backfill/template-recommendation logic
+ * that reads pre-existing answers, but no in-flow UI writes them anymore.
+ *
  * Note: "teammate" (the old "Create your first agent" step) is no longer
  * part of the in-flow sequence. Helper agent creation now happens after
  * onboarding exits, via the workspace OnboardingHelperModal — see
  * `packages/views/workspace/onboarding-helper-modal.tsx`.
  */
 export const ONBOARDING_STEP_ORDER: readonly OnboardingStep[] = [
-  "source",
-  "role",
-  "use_case",
   "workspace",
   "runtime",
 ] as const;

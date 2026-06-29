@@ -9,78 +9,17 @@ import { useAuthStore } from "@multica/core/auth";
 import {
   completeOnboarding,
   ONBOARDING_STEP_ORDER,
-  saveQuestionnaire,
   useWelcomeStore,
   type OnboardingStep,
-  type QuestionnaireAnswers,
 } from "@multica/core/onboarding";
 import { workspaceListOptions } from "@multica/core/workspace/queries";
 import type { AgentRuntime, Workspace } from "@multica/core/types";
 import { StepWelcome } from "./steps/step-welcome";
-import { StepSource } from "./steps/step-source";
-import { StepRole } from "./steps/step-role";
-import { StepUseCase } from "./steps/step-use-case";
 import { StepWorkspace } from "./steps/step-workspace";
 import { StepRuntimeConnect } from "./steps/step-runtime-connect";
 import { StepPlatformFork } from "./steps/step-platform-fork";
 import { useT } from "../i18n";
 
-const EMPTY_QUESTIONNAIRE: QuestionnaireAnswers = {
-  source: [],
-  source_other: null,
-  source_skipped: false,
-  role: null,
-  role_other: null,
-  role_skipped: false,
-  use_case: [],
-  use_case_other: null,
-  use_case_skipped: false,
-  version: 2,
-};
-
-/**
- * Coerce a stored questionnaire slot into the array shape used by the
- * current UI. Earlier versions of this app wrote `source` / `use_case`
- * as a single string; tolerate that on read so a user who started
- * onboarding before this change doesn't see their previous answer
- * disappear on re-entry. Empty string and null both collapse to [].
- */
-function coerceToArray<T extends string>(value: unknown): T[] {
-  if (Array.isArray(value)) {
-    return value.filter((v): v is T => typeof v === "string" && v.length > 0);
-  }
-  if (typeof value === "string" && value.length > 0) {
-    return [value as T];
-  }
-  return [];
-}
-
-/**
- * Merge persisted answers into the empty default. Re-entry pre-fills
- * answered slots but treats `*_skipped` as fresh (the user can answer
- * this time) — the v1 skip marker is dropped on read, the analytics
- * record of the prior skip stays in the DB.
- */
-function mergeQuestionnaire(
-  raw: Record<string, unknown>,
-): QuestionnaireAnswers {
-  const merged = {
-    ...EMPTY_QUESTIONNAIRE,
-    ...(raw as Partial<QuestionnaireAnswers>),
-  };
-  return {
-    ...merged,
-    source: coerceToArray<QuestionnaireAnswers["source"][number]>(raw.source),
-    use_case: coerceToArray<QuestionnaireAnswers["use_case"][number]>(
-      raw.use_case,
-    ),
-    source_skipped: false,
-    role_skipped: false,
-    use_case_skipped: false,
-  };
-}
-
-/**
 /**
  * Shell's onComplete contract:
  *   onComplete(workspace?, issueId?) — if an issue id is present, navigate
@@ -102,6 +41,9 @@ function mergeQuestionnaire(
  * V3 contract: this file never touches createAgent / createIssue. The
  * "what runs in the workspace shell after onboarding" decision is in
  * `packages/views/workspace/welcome-after-onboarding.tsx`.
+ *
+ * The "Quick question" questionnaire steps (source / role / use_case)
+ * have been removed — the flow is now Welcome → Workspace → Runtime.
  */
 export function OnboardingFlow({
   onComplete,
@@ -122,20 +64,13 @@ export function OnboardingFlow({
     throw new Error("OnboardingFlow requires an authenticated user");
   }
 
-  // Questionnaire answers are server-persisted and pre-fill the per-
-  // question steps on re-entry. That's the only piece of onboarding
-  // state persisted across sessions — which step the user is on is
-  // deliberately not saved, so every entry starts at Welcome.
-  const storedQuestionnaire = mergeQuestionnaire(user.onboarding_questionnaire);
-  const [answers, setAnswers] = useState<QuestionnaireAnswers>(storedQuestionnaire);
-
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
 
-  // Fetched at Step 0 + Step 2. Step 2 uses it to detect a pre-existing
+  // Fetched at Welcome + Workspace. Workspace uses it to detect a pre-existing
   // workspace from an earlier abandoned onboarding (so StepWorkspace shows
   // "Continue with {name}" instead of CreateWorkspaceForm — avoiding the
-  // slug conflict that creation would hit). Step 0 uses it to decide
+  // slug conflict that creation would hit). Welcome uses it to decide
   // whether to render the "I've done this before" skip button — only
   // shown when the user already has at least one workspace, otherwise
   // skipping would land them in limbo.
@@ -186,29 +121,12 @@ export function OnboardingFlow({
     setStep(ONBOARDING_STEP_ORDER[0]!);
   }, []);
 
-  // Apply an in-memory patch and fire-and-forget a PATCH to persist
-  // it. We never block UI on the request — the next step's render is
-  // what matters; a transient save failure surfaces as a toast but
-  // does not roll the user back.
-  const applyAnswers = useCallback(
-    (patch: Partial<QuestionnaireAnswers>) => {
-      setAnswers((a) => {
-        const next = { ...a, ...patch };
-        void saveQuestionnaire(next).catch((err) => {
-          if (err instanceof Error) toast.error(err.message);
-        });
-        return next;
-      });
-    },
-    [],
-  );
-
   // "I've done this before" path — returning user who already has a
   // workspace and just wants to land there. Marks onboarding complete
   // server-side (idempotent via COALESCE on onboarded_at); when the
   // target workspace has no runtime yet, the server seeds the same
-  // install-runtime issue as Step 3 Skip so the user lands on a
-  // concrete next step.
+  // install-runtime issue as the runtime step's Skip so the user lands
+  // on a concrete next step.
   const handleWelcomeSkip = useCallback(async () => {
     try {
       await completeOnboarding("skip_existing", workspaces[0]?.id);
@@ -233,7 +151,7 @@ export function OnboardingFlow({
   const handleRuntimeNext = useCallback(
     async (rt: AgentRuntime | null) => {
       if (!workspace) return;
-      // Step 3 in v3 does exactly two things:
+      // The runtime step does exactly two things:
       //   1. Mark onboarded server-side (the workspace layout hard gate
       //      will redirect us back to /onboarding without this).
       //   2. Park a transient welcome signal for the workspace shell to
@@ -265,7 +183,7 @@ export function OnboardingFlow({
   const handleBack = useCallback((from: OnboardingStep) => {
     const idx = ONBOARDING_STEP_ORDER.indexOf(from);
     if (idx <= 0) {
-      // Source (the first persisted step) returns to Welcome.
+      // The first persisted step (Workspace) returns to Welcome.
       setStep("welcome");
       return;
     }
@@ -273,8 +191,7 @@ export function OnboardingFlow({
     setStep(prev);
   }, []);
 
-  // Welcome, Questionnaire, and Workspace own full-bleed two-column
-  // layouts (hero / side panel) with their own DragStrip + StepHeader.
+  // Welcome and Workspace own full-bleed layouts with their own DragStrip.
   // The runtime step owns its own full-bleed shell.
   if (step === "welcome") {
     return (
@@ -282,42 +199,6 @@ export function OnboardingFlow({
         onNext={handleWelcomeNext}
         onSkip={canSkipWelcome ? handleWelcomeSkip : undefined}
         isWeb={isWeb}
-      />
-    );
-  }
-
-  if (step === "source") {
-    return (
-      <StepSource
-        answers={answers}
-        onChange={applyAnswers}
-        onAdvance={() => advanceFrom("source")}
-        onSkip={() => advanceFrom("source")}
-        onBack={() => handleBack("source")}
-      />
-    );
-  }
-
-  if (step === "role") {
-    return (
-      <StepRole
-        answers={answers}
-        onChange={applyAnswers}
-        onAdvance={() => advanceFrom("role")}
-        onSkip={() => advanceFrom("role")}
-        onBack={() => handleBack("role")}
-      />
-    );
-  }
-
-  if (step === "use_case") {
-    return (
-      <StepUseCase
-        answers={answers}
-        onChange={applyAnswers}
-        onAdvance={() => advanceFrom("use_case")}
-        onSkip={() => advanceFrom("use_case")}
-        onBack={() => handleBack("use_case")}
       />
     );
   }
@@ -332,7 +213,7 @@ export function OnboardingFlow({
     );
   }
 
-  // Step 3. Both paths own full-bleed two-column layouts.
+  // Runtime step. Both paths own full-bleed two-column layouts.
   //   - Desktop (no cliInstructions slot) → StepRuntimeConnect drives
   //     the local daemon's runtime list directly.
   //   - Web → StepPlatformFork offers Download / CLI / Cloud paths.
