@@ -248,3 +248,18 @@ func TestClassifyAlwaysReturnsAgentSide(t *testing.T) {
 		}
 	}
 }
+
+// TestClassifyFirstTurnNoProgressMarkerIsUnknown pins the Fix 1a→1b no-collision
+// invariant: the bare codex first-turn-no-progress marker text classifies as
+// Unknown, so without Fix 1a appending the retry-error text the daemon's
+// `case "timeout"` Classify override would recover no provider signal and fall
+// back to codex_semantic_inactivity. The marker itself must trip no rule.
+func TestClassifyFirstTurnNoProgressMarkerIsUnknown(t *testing.T) {
+	t.Parallel()
+
+	got := Classify("codex app-server no progress timeout: no turn/started within 30s")
+	if got != ReasonAgentUnknown {
+		t.Fatalf("bare first-turn-no-progress marker must classify as %q, got %q (it must not trip any auth/quota/capacity rule)",
+			ReasonAgentUnknown, got)
+	}
+}

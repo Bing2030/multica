@@ -840,6 +840,12 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 		if timeoutDiagnostic.Kind != codexTimeoutNone {
 			timeoutDiagnostic.CodexVersion = detectCodexVersionForDiagnostics(context.Background(), execPath, cmd.Env, b.cfg.Logger)
 			finalError = buildCodexTimeoutDiagnosticError(timeoutDiagnostic, stderrBuf.Tail())
+			// Append any retrying provider errors captured before the stall so
+			// taskfailure.Classify downstream can recover the real cause
+			// (auth/quota/rate-limit) instead of bucketing as a generic timeout.
+			if retryErrs := c.getRetryErrors(); retryErrs != "" {
+				finalError = finalError + "; codex retry errors: " + retryErrs
+			}
 		}
 
 		outputMu.Lock()
@@ -1171,6 +1177,14 @@ type codexClient struct {
 
 	turnErrorMu sync.Mutex
 	turnError   string // captured from turn/completed status=failed or terminal error notifications
+
+	// retryError captures error-notification messages with willRetry=true.
+	// During an auth/quota/rate-limit stall codex emits error:retry frames but
+	// never a terminal turn, so setTurnError never fires and the real upstream
+	// cause would be lost. Folding these into the first-turn-no-progress
+	// diagnostic lets taskfailure.Classify recover the provider error.
+	retryErrorMu sync.Mutex
+	retryError   []string
 }
 
 func (c *codexClient) setTurnError(msg string) {
@@ -1188,6 +1202,43 @@ func (c *codexClient) getTurnError() string {
 	c.turnErrorMu.Lock()
 	defer c.turnErrorMu.Unlock()
 	return c.turnError
+}
+
+// appendRetryError records a retrying codex error message. Capped (entries +
+// per-entry bytes) and de-duplicated so a churning retry loop cannot grow the
+// result error unboundedly.
+func (c *codexClient) appendRetryError(msg string) {
+	msg = strings.TrimSpace(msg)
+	if msg == "" {
+		return
+	}
+	const (
+		maxRetryErrors   = 8
+		maxRetryErrBytes = 256
+	)
+	if len(msg) > maxRetryErrBytes {
+		msg = msg[:maxRetryErrBytes] + "…"
+	}
+	c.retryErrorMu.Lock()
+	defer c.retryErrorMu.Unlock()
+	if len(c.retryError) >= maxRetryErrors {
+		return
+	}
+	for _, e := range c.retryError {
+		if e == msg {
+			return
+		}
+	}
+	c.retryError = append(c.retryError, msg)
+}
+
+func (c *codexClient) getRetryErrors() string {
+	c.retryErrorMu.Lock()
+	defer c.retryErrorMu.Unlock()
+	if len(c.retryError) == 0 {
+		return ""
+	}
+	return strings.Join(c.retryError, "; ")
 }
 
 type pendingRPC struct {
@@ -1554,7 +1605,12 @@ func (c *codexClient) handleRawNotification(method string, params map[string]any
 					c.onSemanticActivity("error:terminal")
 				}
 			}
-			if !willRetry {
+			if willRetry {
+				// A retrying error (rate limit, transient auth) is the only
+				// signal available during an auth/quota stall — capture it so
+				// the timeout diagnostic can carry the upstream cause.
+				c.appendRetryError(errMsg)
+			} else {
 				c.setTurnError(errMsg)
 				if c.onTurnDone != nil {
 					c.onTurnDone(false)
