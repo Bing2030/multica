@@ -44,10 +44,19 @@ export function InboxListItem({
     <button
       type="button"
       onClick={onClick}
-      className={`group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+      className={`group relative flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
         isSelected ? "bg-accent" : "hover:bg-accent/50"
       }`}
     >
+      {/* Unread accent rail: a brand-colored bar pinned to the row's left
+          edge. A distinct shape (not just color), so unread stays obvious
+          and accessible without colliding with the selection/hover bg. */}
+      {!item.read && (
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand"
+        />
+      )}
       <ActorAvatar
         actorType={item.actor_type ?? item.recipient_type}
         actorId={item.actor_id ?? item.recipient_id}
@@ -61,7 +70,7 @@ export function InboxListItem({
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
             )}
             <span
-              className={`truncate text-sm ${!item.read ? "font-medium" : "text-muted-foreground"}`}
+              className={`truncate text-sm ${!item.read ? "font-semibold" : "text-muted-foreground"}`}
             >
               {displayTitle}
             </span>

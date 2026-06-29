@@ -632,7 +632,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         <item.icon />
                         <span>{t(($) => $.nav[item.labelKey])}</span>
                         {item.key === "inbox" && unreadCount > 0 && (
-                          <span className="ml-auto text-xs">
+                          <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand px-1.5 text-xs font-medium text-brand-foreground tabular-nums">
                             {unreadCount > 99 ? "99+" : unreadCount}
                           </span>
                         )}
