@@ -5,7 +5,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getApi } from "../api";
 import { useAuthStore } from "../auth";
 import {
-  captureSignupSource,
   identify as identifyAnalytics,
   initAnalytics,
   resetAnalytics,
@@ -13,11 +12,8 @@ import {
 import { configStore } from "../config";
 import { workspaceKeys } from "../workspace/queries";
 import { createLogger } from "../logger";
-import { defaultStorage } from "./storage";
 import { setCurrentWorkspace } from "./workspace-storage";
 import type { ClientIdentity } from "./types";
-import type { StorageAdapter } from "../types/storage";
-import type { User } from "../types";
 
 const logger = createLogger("auth");
 
@@ -25,25 +21,19 @@ export function AuthInitializer({
   children,
   onLogin,
   onLogout,
-  storage = defaultStorage,
-  cookieAuth,
   identity,
 }: {
   children: ReactNode;
   onLogin?: () => void;
   onLogout?: () => void;
-  storage?: StorageAdapter;
-  cookieAuth?: boolean;
+  storage?: unknown; // retained for API symmetry; unused under DevBypass
+  cookieAuth?: boolean; // retained for API symmetry; unused under DevBypass
   identity?: ClientIdentity;
 }) {
   const qc = useQueryClient();
 
   useEffect(() => {
     const api = getApi();
-
-    // Stamp attribution before anything else — the signup event (server-side)
-    // reads this cookie, so it has to be present before the user hits submit.
-    captureSignupSource();
 
     // Fetch app config (CDN domain, PostHog key, …) in the background — non-blocking.
     api
@@ -56,13 +46,6 @@ export function AuthInitializer({
             cdnSigned: cfg.cdn_signed === true,
           });
         }
-        configStore.getState().setAuthConfig({
-          allowSignup: cfg.allow_signup,
-          googleClientId: cfg.google_client_id,
-          // Old servers omit this field — treat that as "creation allowed"
-          // (the managed-cloud default) rather than blocking the UI.
-          workspaceCreationDisabled: cfg.workspace_creation_disabled === true,
-        });
         configStore.getState().setDaemonConfig({
           daemonServerUrl: cfg.daemon_server_url,
           daemonAppUrl: cfg.daemon_app_url,
@@ -80,63 +63,25 @@ export function AuthInitializer({
         /* config is optional — legacy file card matching degrades gracefully */
       });
 
-    const onAuthSuccess = (user: User) => {
-      onLogin?.();
-      useAuthStore.setState({ user, isLoading: false });
-      identifyAnalytics(user.id, { email: user.email, name: user.name });
-    };
-
-    const onAuthFailure = () => {
-      onLogout?.();
-      resetAnalytics();
-      useAuthStore.setState({ user: null, isLoading: false });
-    };
-
-    if (cookieAuth) {
-      // Cookie mode: the HttpOnly cookie is sent automatically by the browser.
-      // Call the API to check if the session is still valid.
-      //
-      // Seed the workspace list into React Query so the URL-driven layout can
-      // resolve the slug without a second fetch. The active workspace itself
-      // is derived from the URL by [workspaceSlug]/layout.tsx — no imperative
-      // selection here.
-      Promise.all([api.getMe(), api.listWorkspaces()])
-        .then(([user, wsList]) => {
-          onAuthSuccess(user);
-          qc.setQueryData(workspaceKeys.list(), wsList);
-        })
-        .catch((err) => {
-          logger.error("cookie auth init failed", err);
-          onAuthFailure();
-        });
-      return;
-    }
-
-    // Token mode: read from localStorage (Electron / legacy).
-    const token = storage.getItem("multica_token");
-    if (!token) {
-      onLogout?.();
-      useAuthStore.setState({ isLoading: false });
-      return;
-    }
-
-    api.setToken(token);
-
+    // THROWAWAY POC: backend auth is disabled — every request runs as a fixed
+    // dev user (server/internal/middleware/dev_bypass.go), so a session always
+    // exists. Fetch it directly with no token and seed the workspace list so the
+    // URL-driven layout can resolve the slug without a second fetch. NEVER MERGE.
     Promise.all([api.getMe(), api.listWorkspaces()])
       .then(([user, wsList]) => {
-        onAuthSuccess(user);
-        // Seed React Query cache so the URL-driven layout can resolve the
-        // slug without a second fetch.
+        onLogin?.();
+        useAuthStore.setState({ user, isLoading: false });
+        identifyAnalytics(user.id, { email: user.email, name: user.name });
         qc.setQueryData(workspaceKeys.list(), wsList);
       })
       .catch((err) => {
         logger.error("auth init failed", err);
-        api.setToken(null);
         setCurrentWorkspace(null, null);
-        storage.removeItem("multica_token");
-        onAuthFailure();
+        resetAnalytics();
+        onLogout?.();
+        useAuthStore.setState({ user: null, isLoading: false });
       });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <>{children}</>;

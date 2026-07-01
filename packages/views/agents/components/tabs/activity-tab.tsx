@@ -21,7 +21,6 @@ import type {
   Agent,
   AgentTask,
   Issue,
-  TaskFailureReason,
 } from "@multica/core/types";
 import {
   type AgentActivity,
@@ -37,7 +36,7 @@ import { issueDetailOptions } from "@multica/core/issues/queries";
 import { AppLink } from "../../../navigation";
 import { TranscriptButton } from "../../../common/task-transcript";
 import { taskStatusConfig } from "../../config";
-import { failureReasonLabel } from "./task-failure";
+import { failureReasonLabelFor } from "./task-failure";
 import { Sparkline } from "../sparkline";
 import { useT, useTimeAgo } from "../../../i18n";
 
@@ -424,11 +423,13 @@ function TaskRow({
         : "—";
 
   // Failure reason. The back-end emits "" on non-failed tasks (omitempty
-  // strips it on the wire) so the truthy guard is the right shape; the
-  // cast is safe because the back-end only emits one of the enum values.
+  // strips it on the wire) so the truthy guard is the right shape.
+  // failureReasonLabelFor returns null for unknown reasons (including
+  // refined agent_error.* values it doesn't map yet) so the row falls back
+  // to a generic status label instead of rendering undefined.
   const failureLabel =
     task.status === "failed" && task.failure_reason
-      ? failureReasonLabel[task.failure_reason as TaskFailureReason]
+      ? failureReasonLabelFor(task.failure_reason)
       : null;
 
   // Only show duration for terminal rows. An active row's duration is

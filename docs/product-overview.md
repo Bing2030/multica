@@ -82,7 +82,7 @@ Multica 做的事：
 
 Multica **不自己训模型**，也不锁定某一家厂商。它是调度器，本地 daemon 会自动探测以下 CLI 工具并接入：
 
-Claude Code · Codex · OpenClaw · OpenCode · Hermes · Gemini · Pi · Cursor Agent · Kimi · Kiro CLI
+Claude Code · Codex · GitHub Copilot CLI · Cursor Agent · OpenCode · Pi
 
 每个 agent 可以配置自己的模型、API Key、环境变量、MCP 服务器。
 
@@ -244,7 +244,7 @@ Project 相比 Issue 是更高层的组织单元。一个 issue 可以不属于�
 #### 配置字段
 
 - **基本信息**：名字、描述、头像（自动生成）
-- **Provider**：选择底层是 Claude / Codex / OpenClaw / OpenCode / Hermes / Gemini / Pi / Cursor / Kimi / Kiro 中的哪一个
+- **Provider**：选择底层是 Claude Code / Codex / GitHub Copilot CLI / Cursor Agent / OpenCode / Pi 中的哪一个
 - **Runtime**：绑定到哪个运行时（即在哪台机器上跑）
 - **Instructions 说明书**：agent 的系统提示词（"你是一个资深工程师..."）
 - **Custom Env**：要注入到 CLI 进程的环境变量（如 `ANTHROPIC_API_KEY`、`ANTHROPIC_BASE_URL`、`CLAUDE_CODE_USE_BEDROCK`）
@@ -887,7 +887,6 @@ Server 启动三个 goroutine：
 - **Daemon 集成**：设置里能直接重启本机 daemon、看状态
 - **本地 daemon runtime 卡片**：在 Runtimes 页面自动显示本机 daemon
 - **自动更新**：`Settings → Updates` 检查/下载/安装新版本
-- **Immersive mode**：全屏模式，隐藏侧边栏
 - **深链接**：`multica://auth/callback?token=...` 和 `multica://invite/{id}`
 - **拖动区**：macOS 的红绿灯 + 顶部 48px 拖拽条（`h-12`）用来移动窗口
 - **Workspace 单例守护**：`setCurrentWorkspace()` 管理当前活跃工作区的全局身份

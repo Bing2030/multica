@@ -13,8 +13,6 @@ import pg from "pg";
 import { createTestApi } from "./helpers";
 import type { TestApiClient } from "./fixtures";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || `http://localhost:${process.env.PORT || "8080"}`;
 const DATABASE_URL =
   process.env.DATABASE_URL ?? "postgres://multica:multica@localhost:5432/multica?sslmode=disable";
 
@@ -23,16 +21,6 @@ interface UploadRow {
   url: string;
   chat_session_id: string | null;
   chat_message_id: string | null;
-}
-
-async function authedFetch(api: TestApiClient, path: string, init?: RequestInit) {
-  const token = api.getToken();
-  if (!token) throw new Error("test api client not logged in");
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    ...((init?.headers as Record<string, string>) ?? {}),
-  };
-  return fetch(`${API_BASE}${path}`, { ...init, headers });
 }
 
 test.describe("Chat attachments", () => {
@@ -129,7 +117,7 @@ test.describe("Chat attachments", () => {
     const form = new FormData();
     form.append("file", new Blob([new Uint8Array(pngBytes)], { type: "image/png" }), "e2e.png");
     form.append("chat_session_id", createdSessionId);
-    const uploadRes = await authedFetch(api, "/api/upload-file", {
+    const uploadRes = await api.authedFetch("/api/upload-file", {
       method: "POST",
       body: form,
       headers: { "X-Workspace-Slug": ws.slug },
@@ -141,7 +129,7 @@ test.describe("Chat attachments", () => {
     expect(uploaded.url).toBeTruthy();
 
     // 2. Send a chat message that references the attachment.
-    const sendRes = await authedFetch(api, `/api/chat/sessions/${createdSessionId}/messages`, {
+    const sendRes = await api.authedFetch(`/api/chat/sessions/${createdSessionId}/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

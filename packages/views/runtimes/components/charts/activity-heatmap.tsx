@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { RuntimeUsage } from "@multica/core/types";
-import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
-import { addDaysIso, estimateCost, todayIso, weekStartIso } from "../../utils";
+import { addDaysIso, formatTokens, todayIso, weekStartIso } from "../../utils";
 import { useT } from "../../../i18n";
 
 // 26 weeks (~6 months) gives the heatmap real presence in the wider chart
@@ -19,18 +18,13 @@ const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Cells use the brand-derived chart-1 hue with descending opacity instead
 // of a neutral foreground fade, so the heatmap reads as part of the same
-// visual family as Daily cost (chart-1 stack) rather than a separate
-// monochrome surface. Level 0 stays neutral muted to clearly mean "no
-// activity" (not "very faint activity").
+// visual family as the Daily tokens chart (chart-1 stack) rather than a
+// separate monochrome surface. Level 0 stays neutral muted to clearly mean
+// "no activity" (not "very faint activity").
 function getHeatmapColor(level: number): string {
   if (level === 0) return "var(--color-muted)";
   const opacities = ["20%", "45%", "70%", "100%"];
   return `color-mix(in oklch, var(--color-chart-1) ${opacities[level - 1]}, transparent)`;
-}
-
-function fmtMoney(n: number): string {
-  if (n >= 100) return `$${n.toFixed(0)}`;
-  return `$${n.toFixed(2)}`;
 }
 
 function fmtDate(iso: string): string {
@@ -41,12 +35,12 @@ function fmtDate(iso: string): string {
 }
 
 interface Insights {
-  busiestDay: { date: string; cost: number } | null;
+  busiestDay: { date: string; tokens: number } | null;
   busyDayName: string | null;
   busyDayAvg: number;
   quietDayName: string | null;
   quietDayAvg: number;
-  totalCost: number;
+  totalTokens: number;
   windowDays: number;
 }
 
@@ -58,16 +52,15 @@ export function ActivityHeatmap({
   tz: string;
 }) {
   const { t } = useT("runtimes");
-  // Memo dep — estimateCost (called inside the body below) consults the
-  // user-override store, so saving a custom rate must invalidate the cells.
-  const pricings = useCustomPricingStore((s) => s.pricings);
   const { cells, monthLabels, insights } = useMemo(() => {
-    // Sum priced cost per day. Cost (not tokens) gives the colour scale a
-    // financial meaning that lines up with the rest of the page — a "hot"
-    // square here means the same thing as a tall bar in Daily cost.
-    const dateCost = new Map<string, number>();
+    // Sum tokens per day. Tokens (not cost) give the colour scale a meaning
+    // that lines up with the rest of the page — a "hot" square here means
+    // the same thing as a tall bar in Daily tokens.
+    const dateTokens = new Map<string, number>();
     for (const u of usage) {
-      dateCost.set(u.date, (dateCost.get(u.date) ?? 0) + estimateCost(u));
+      const tok =
+        u.input_tokens + u.output_tokens + u.cache_read_tokens + u.cache_write_tokens;
+      dateTokens.set(u.date, (dateTokens.get(u.date) ?? 0) + tok);
     }
 
     // Anchor the grid on the Monday of the week containing "today" in the
@@ -91,7 +84,7 @@ export function ActivityHeatmap({
       date: string;
       dayOfWeek: number; // 0 = Mon ... 6 = Sun
       week: number;
-      cost: number;
+      tokens: number;
     }[] = [];
     for (let i = 0; i <= todayIndex; i++) {
       const dateStr = addDaysIso(startDate, i);
@@ -101,16 +94,16 @@ export function ActivityHeatmap({
         date: dateStr,
         dayOfWeek,
         week,
-        cost: dateCost.get(dateStr) ?? 0,
+        tokens: dateTokens.get(dateStr) ?? 0,
       });
     }
 
-    const nonZero = allCells.filter((c) => c.cost > 0).map((c) => c.cost);
+    const nonZero = allCells.filter((c) => c.tokens > 0).map((c) => c.tokens);
     nonZero.sort((a, b) => a - b);
-    const getLevel = (cost: number) => {
-      if (cost === 0) return 0;
+    const getLevel = (tokens: number) => {
+      if (tokens === 0) return 0;
       if (nonZero.length <= 1) return 4;
-      const p = nonZero.indexOf(cost) / (nonZero.length - 1);
+      const p = nonZero.indexOf(tokens) / (nonZero.length - 1);
       if (p <= 0.25) return 1;
       if (p <= 0.5) return 2;
       if (p <= 0.75) return 3;
@@ -119,7 +112,7 @@ export function ActivityHeatmap({
 
     const cellsWithLevel = allCells.map((c) => ({
       ...c,
-      level: getLevel(c.cost),
+      level: getLevel(c.tokens),
     }));
 
     const months: { label: string; week: number }[] = [];
@@ -139,16 +132,16 @@ export function ActivityHeatmap({
 
     // Insights derived from the same cells so the colour scale, the busiest
     // square, and the side-panel numbers can never disagree.
-    let busiestDay: { date: string; cost: number } | null = null;
-    let totalCost = 0;
+    let busiestDay: { date: string; tokens: number } | null = null;
+    let totalTokens = 0;
     const weekdaySum = [0, 0, 0, 0, 0, 0, 0];
     const weekdayCount = [0, 0, 0, 0, 0, 0, 0];
     for (const c of allCells) {
-      totalCost += c.cost;
-      weekdaySum[c.dayOfWeek] = (weekdaySum[c.dayOfWeek] ?? 0) + c.cost;
+      totalTokens += c.tokens;
+      weekdaySum[c.dayOfWeek] = (weekdaySum[c.dayOfWeek] ?? 0) + c.tokens;
       weekdayCount[c.dayOfWeek] = (weekdayCount[c.dayOfWeek] ?? 0) + 1;
-      if (c.cost > 0 && (!busiestDay || c.cost > busiestDay.cost)) {
-        busiestDay = { date: c.date, cost: c.cost };
+      if (c.tokens > 0 && (!busiestDay || c.tokens > busiestDay.tokens)) {
+        busiestDay = { date: c.date, tokens: c.tokens };
       }
     }
     const weekdayAvg = weekdaySum.map((s, i) => {
@@ -171,9 +164,9 @@ export function ActivityHeatmap({
       }
     });
     if (quietDayAvg === Number.POSITIVE_INFINITY) quietDayAvg = 0;
-    // When the window has no spend at all, the busy / quiet weekday picks
+    // When the window has no tokens at all, the busy / quiet weekday picks
     // are noise (every weekday averaged to 0). Suppress them.
-    if (totalCost === 0) {
+    if (totalTokens === 0) {
       busyDayName = null;
       quietDayName = null;
     }
@@ -184,12 +177,12 @@ export function ActivityHeatmap({
       busyDayAvg,
       quietDayName,
       quietDayAvg,
-      totalCost,
+      totalTokens,
       windowDays: allCells.length,
     };
 
     return { cells: cellsWithLevel, monthLabels: months, insights };
-  }, [usage, pricings, tz]);
+  }, [usage, tz]);
 
   const labelWidth = 28;
   const svgWidth = labelWidth + HEATMAP_WEEKS * (CELL_SIZE + CELL_GAP);
@@ -242,7 +235,7 @@ export function ActivityHeatmap({
               >
                 <title>
                   {c.date}:{" "}
-                  {c.cost > 0 ? `$${c.cost.toFixed(2)}` : "No activity"}
+                  {c.tokens > 0 ? formatTokens(c.tokens) : "No activity"}
                 </title>
               </rect>
             ))}
@@ -276,7 +269,7 @@ function InsightsRow({ insights }: { insights: Insights }) {
     busyDayAvg,
     quietDayName,
     quietDayAvg,
-    totalCost,
+    totalTokens,
     windowDays,
   } = insights;
   return (
@@ -284,19 +277,19 @@ function InsightsRow({ insights }: { insights: Insights }) {
       <Insight
         label="Busiest day"
         value={busiestDay ? fmtDate(busiestDay.date) : "—"}
-        sub={busiestDay ? fmtMoney(busiestDay.cost) : null}
+        sub={busiestDay ? formatTokens(busiestDay.tokens) : null}
       />
       <Insight
         label="Most active weekday"
         value={busyDayName ?? "—"}
-        sub={busyDayName ? `avg ${fmtMoney(busyDayAvg)}` : null}
+        sub={busyDayName ? `avg ${formatTokens(busyDayAvg)}` : null}
       />
       <Insight
         label="Quietest weekday"
         value={quietDayName ?? "—"}
-        sub={quietDayName ? `avg ${fmtMoney(quietDayAvg)}` : null}
+        sub={quietDayName ? `avg ${formatTokens(quietDayAvg)}` : null}
       />
-      <Insight label={`${windowDays}-day total`} value={fmtMoney(totalCost)} />
+      <Insight label={`${windowDays}-day total`} value={formatTokens(totalTokens)} />
     </dl>
   );
 }

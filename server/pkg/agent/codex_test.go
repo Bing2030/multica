@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
 
 func newTestCodexClient(t *testing.T) (*codexClient, *fakeStdin, []Message) {
@@ -1364,6 +1366,50 @@ func TestCodexExecuteFirstTurnRetryErrorDoesNotSatisfyProgress(t *testing.T) {
 	}
 	if strings.Contains(result.Error, CodexSemanticInactivityMarker) {
 		t.Fatalf("retrying error should not demote first-turn timeout to semantic inactivity, got %q", result.Error)
+	}
+	// Fix 1a: the retrying error message must be captured into the timeout
+	// diagnostic so taskfailure.Classify downstream can recover the cause.
+	if !strings.Contains(result.Error, "codex retry errors:") {
+		t.Fatalf("expected retry-error text in timeout diagnostic, got %q", result.Error)
+	}
+	if !strings.Contains(result.Error, "temporary reconnect") {
+		t.Fatalf("expected captured retry message in timeout diagnostic, got %q", result.Error)
+	}
+}
+
+// TestCodexExecuteRetryErrorAuthIsClassifiable pins the Fix 1a→1b contract: a
+// retrying codex error carrying an auth signal (401) must land in result.Error
+// so taskfailure.Classify recovers ReasonAgentProviderAuthOrAccess instead of
+// the generic timeout bucket. Without Fix 1a the retry message is discarded and
+// Classify returns Unknown.
+func TestCodexExecuteRetryErrorAuthIsClassifiable(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	fakePath := writeFakeCodexAppServer(t, ""+
+		`read line`+"\n"+
+		`echo '{"jsonrpc":"2.0","id":1,"result":{}}'`+"\n"+
+		`read line`+"\n"+
+		`read line`+"\n"+
+		`echo '{"jsonrpc":"2.0","id":2,"result":{"thread":{"id":"thr-auth"}}}'`+"\n"+
+		`read line`+"\n"+
+		`echo '{"jsonrpc":"2.0","id":3,"result":{}}'`+"\n"+
+		`echo '{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"thr-auth","turn":{"id":"turn-auth"}}}'`+"\n"+
+		`echo '{"jsonrpc":"2.0","method":"error","params":{"threadId":"thr-auth","error":{"message":"401 Unauthorized: ChatGPT login required"},"willRetry":true}}'`+"\n"+
+		`sleep 5`+"\n")
+
+	result := executeFakeCodex(t, fakePath, ExecOptions{
+		Timeout:                   5 * time.Second,
+		SemanticInactivityTimeout: 200 * time.Millisecond,
+	})
+	if result.Status != "timeout" {
+		t.Fatalf("expected timeout, got status=%q error=%q", result.Status, result.Error)
+	}
+	if classified := taskfailure.Classify(result.Error); classified != taskfailure.ReasonAgentProviderAuthOrAccess {
+		t.Fatalf("expected retry-error timeout to classify as %q, got %q (error=%q)",
+			taskfailure.ReasonAgentProviderAuthOrAccess, classified, result.Error)
 	}
 }
 

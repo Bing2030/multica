@@ -24,6 +24,9 @@ func BuildPrompt(task Task, provider string) string {
 	if task.AutopilotRunID != "" {
 		return buildAutopilotPrompt(task)
 	}
+	if task.DirectRunPrompt != "" {
+		return buildDirectRunPrompt(task)
+	}
 	if task.QuickCreatePrompt != "" {
 		return buildQuickCreatePrompt(task)
 	}
@@ -127,6 +130,24 @@ func buildQuickCreatePrompt(task Task) string {
 	b.WriteString("- After success, print exactly one line: `Created <identifier-or-id>: <title>` and exit. No commentary, no follow-up tool calls.\n")
 	b.WriteString("- Do NOT call `multica issue get` or `multica issue comment add` — there is no issue to query or comment on.\n")
 	b.WriteString("- On CLI error or JSON parse error, exit with the error as the only output. The platform writes a failure notification automatically.\n")
+	return b.String()
+}
+
+// buildDirectRunPrompt constructs a prompt for a "direct run" — an ad-hoc
+// execution whose final text output is the deliverable, fetched by an
+// external caller via the runs API. Unlike a quick-create, the agent does
+// NOT create an issue: its terminal output is captured into the task result
+// by the existing completion path (the daemon posts result.Output as the
+// completion's `output`, which the server stores in agent_task_queue.result).
+// The agent may use the full `multica` CLI and any available tools to gather
+// context or perform work; only what it is asked to *produce* differs.
+func buildDirectRunPrompt(task Task) string {
+	var b strings.Builder
+	b.WriteString("You are running as a direct-run agent for a Multica workspace. Execute the instruction below and return your final result as plain text. Do NOT create, comment on, or otherwise modify any Multica issue — your final textual output IS the deliverable and is captured automatically.\n\n")
+	fmt.Fprintf(&b, "Instruction:\n> %s\n\n", task.DirectRunPrompt)
+	b.WriteString("You may use the `multica` CLI and any tools available to you to gather context or perform work. When you are done, write your final answer as plain text.\n")
+	b.WriteString("- Do not run `multica issue create`, `multica issue comment add`, or any issue-mutating command. There is no issue for this run.\n")
+	b.WriteString("- Do not append a summary that you are finished or describe what you did unless the instruction asks for it — your final text is returned verbatim to the caller.\n")
 	return b.String()
 }
 

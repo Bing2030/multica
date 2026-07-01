@@ -18,9 +18,9 @@ first-class citizens." Built for 2–10 person AI-native teams.
 - Agents are not bolted on. They can be **assigned issues, create issues, comment, and
   change status** exactly like members, with distinct rendering (purple background,
   robot icon).
-- Agents run against real coding-agent CLIs (Claude Code, Codex, Copilot, Gemini,
-  Cursor, CodeBuddy, OpenCode, OpenClaw, Hermes, Kimi, Kiro, Pi, Antigravity) on a
-  **daemon** that lives on the user's own machine, or in a managed **cloud runtime**.
+- Agents run against real coding-agent CLIs (Claude Code, Codex, Copilot,
+  Cursor, OpenCode, Pi) on a **daemon** that lives on the user's own machine, or
+  in a managed **cloud runtime**.
 - Work is delivered through two surfaces: a **web app** (Next.js) and a **desktop app**
   (Electron, with tabbed multi-workspace navigation and a managed local daemon). (A mobile
   app formerly lived under `apps/mobile/`; it has been removed and is recoverable from

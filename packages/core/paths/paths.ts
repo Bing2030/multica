@@ -4,7 +4,7 @@
  *
  * Two kinds of paths:
  *  - workspace-scoped: paths.workspace(slug).xxx() — carry workspace in URL
- *  - global: paths.login(), paths.newWorkspace(), paths.invite(id) — pre-workspace routes
+ *  - global: paths.newWorkspace(), paths.invite(id), paths.invitations() — pre-workspace routes
  *
  * Why pure functions + builder pattern:
  *  - Changing a route shape (e.g. adding workspace slug prefix) becomes a single-file edit
@@ -44,13 +44,14 @@ function workspaceScoped(slug: string) {
 export const paths = {
   workspace: workspaceScoped,
 
-  // Global (pre-workspace) routes
-  login: () => "/login",
+  // Global (pre-workspace) routes. Login / onboarding / auth-callback were
+  // removed for the local POC: DevBypass (server/internal/middleware/dev_bypass.go)
+  // stamps a fixed dev user and auto-provisions the dev workspace, so there is
+  // no auth gate and no onboarding wizard. `newWorkspace` / `invite` /
+  // `invitations` remain — they are real workspace features, not gates.
   newWorkspace: () => "/workspaces/new",
   invite: (id: string) => `/invite/${encode(id)}`,
   invitations: () => "/invitations",
-  onboarding: () => "/onboarding",
-  authCallback: () => "/auth/callback",
   root: () => "/",
 };
 
@@ -60,7 +61,7 @@ export type WorkspacePaths = ReturnType<typeof workspaceScoped>;
 // A path is global if it equals or begins with any of these.
 // Note: `/workspaces/` (trailing slash) is the prefix — `workspaces` is reserved,
 // so any path starting with `/workspaces/...` is system-owned, not user-owned.
-const GLOBAL_PREFIXES = ["/login", "/workspaces/", "/invite/", "/invitations", "/onboarding", "/auth/", "/logout", "/signup"];
+const GLOBAL_PREFIXES = ["/workspaces/", "/invite/", "/invitations"];
 
 export function isGlobalPath(path: string): boolean {
   return GLOBAL_PREFIXES.some((p) => path === p || path.startsWith(p));

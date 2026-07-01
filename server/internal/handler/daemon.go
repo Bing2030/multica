@@ -1611,6 +1611,30 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Direct-run task: same issue-less shape as quick-create, but the agent
+	// executes the prompt and returns its output directly instead of running
+	// `multica issue create`. Surface the prompt + workspace so the daemon's
+	// prompt builder (buildDirectRunPrompt) takes the direct-run branch, and
+	// so the workspace isolation check below has a value to compare. The
+	// workspace repos are included so the agent can operate on the codebase
+	// when the prompt asks it to.
+	if task.Context != nil && !task.IssueID.Valid && !task.ChatSessionID.Valid && !task.AutopilotRunID.Valid {
+		var dr service.DirectRunContext
+		if json.Unmarshal(task.Context, &dr) == nil && dr.Type == service.DirectRunContextType {
+			resp.DirectRunPrompt = dr.Prompt
+			resp.ThreadName = dr.Prompt
+			resp.WorkspaceID = dr.WorkspaceID
+			if wsUUID, err := util.ParseUUID(dr.WorkspaceID); err == nil {
+				if ws, werr := h.Queries.GetWorkspace(r.Context(), wsUUID); werr == nil && ws.Repos != nil {
+					var repos []RepoData
+					if json.Unmarshal(ws.Repos, &repos) == nil && len(repos) > 0 {
+						resp.Repos = repos
+					}
+				}
+			}
+		}
+	}
+
 	// Workspace isolation check: the daemon uses this response's workspace_id
 	// as the only authority for MULTICA_WORKSPACE_ID in the agent env. An
 	// empty value would make the CLI silently fall back to the user-global

@@ -24,9 +24,9 @@ import { Markdown } from "@multica/views/common/markdown";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { AttachmentList } from "../../issues/components/comment-card";
 import type { AgentAvailability } from "@multica/core/agents";
-import type { ChatMessage, ChatPendingTask, TaskFailureReason } from "@multica/core/types";
+import type { ChatMessage, ChatPendingTask } from "@multica/core/types";
 import type { ChatTimelineItem } from "@multica/core/chat";
-import { failureReasonLabel } from "../../agents/components/tabs/task-failure";
+import { failureReasonLabelFor } from "../../agents/components/tabs/task-failure";
 import { buildTimeline } from "../../common/task-transcript";
 import { TaskStatusPill } from "./task-status-pill";
 import { formatElapsedMs } from "../lib/format";
@@ -376,7 +376,7 @@ function FailureBubble({
   // reason (e.g. a future enum value the front-end doesn't ship yet)
   // falls back to a generic translated label.
   const label =
-    failureReasonLabel[reason as TaskFailureReason] ??
+    failureReasonLabelFor(reason) ??
     t(($) => $.message_list.task_failed_fallback);
 
   return (

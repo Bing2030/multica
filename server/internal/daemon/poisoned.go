@@ -132,3 +132,27 @@ func classifyResumeUnsafeTimeout(provider, errMsg string) (string, bool) {
 	}
 	return "", false
 }
+
+// classifyTimeoutFailureReason derives the failure_reason for an agent timeout
+// from the error comment. A specific provider signal (auth/quota/capacity/
+// server/network/missing-config/model) in the comment wins over the generic
+// timeout bucket — auth/quota are non-retryable, so this is what stops the
+// pointless retry churn a stall otherwise produces. A plain "timed out after"
+// (ReasonAgentTimeout) is NOT treated as a provider signal: it carries no new
+// information beyond the timeout we already have, and mapping it to
+// agent_error.agent_timeout would silently drop these runs from the retryable
+// "timeout" bucket. Only when no specific provider signal is present do we fall
+// back to the resume-unsafe inactivity bucket, then the plain "timeout".
+// Returns the reason, whether a specific provider reason was used
+// (classified=true), and whether the caller should invalidate the codex
+// auth-probe cache (a run-time auth failure means the cached `codex login
+// status` probe is stale).
+func classifyTimeoutFailureReason(provider, comment string) (reason string, classified bool, invalidateAuthCache bool) {
+	if c := taskfailure.Classify(comment); c != taskfailure.ReasonAgentUnknown && c != taskfailure.ReasonAgentTimeout {
+		return c.String(), true, provider == "codex" && c == taskfailure.ReasonAgentProviderAuthOrAccess
+	}
+	if r, ok := classifyResumeUnsafeTimeout(provider, comment); ok {
+		return r, false, false
+	}
+	return "timeout", false, false
+}

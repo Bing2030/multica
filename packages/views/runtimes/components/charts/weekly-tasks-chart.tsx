@@ -16,7 +16,7 @@ import { useT } from "../../../i18n";
 
 // Weekly counterpart of DailyTasksChart — same completed/failed stacked
 // bar, but each bar groups a Mon–Sun calendar week. Partial-week bars at
-// half opacity match WeeklyCostChart / WeeklyTokensChart so the in-progress
+// half opacity match WeeklyTokensChart so the in-progress
 // week reads as visually subordinate everywhere.
 const weeklyTasksChartConfig = {
   completed: { label: "Completed", color: "var(--chart-1)" },

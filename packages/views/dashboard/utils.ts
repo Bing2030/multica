@@ -6,8 +6,6 @@ import type {
 } from "@multica/core/types";
 import {
   addDaysIso,
-  estimateCost,
-  estimateCostBreakdown,
   formatShortDate,
   todayIso,
   weekStartIso,
@@ -24,22 +22,9 @@ import type {
 // Dashboard data aggregations
 //
 // The workspace dashboard returns the same per-(date, model) and
-// per-(agent, model) shapes the runtime page does, so cost math reuses
-// `estimateCost` / `estimateCostBreakdown` from the runtimes utils. What
-// the runtimes view does with `aggregateByDate` (works on RuntimeUsage,
-// which carries a `provider` field) we replicate here with a tighter
-// type — fewer optional fields, less conditional logic on the consumer
-// side.
+// per-(agent, model) shapes the runtime page does. Cost / money has been
+// removed entirely — every aggregation below is token-only.
 // ---------------------------------------------------------------------------
-
-export interface DailyCostStack {
-  date: string;
-  label: string;
-  input: number;
-  output: number;
-  cacheWrite: number;
-  total: number;
-}
 
 function formatDateLabel(d: string): string {
   // Anchor to local midnight so the formatted label matches the bucket the
@@ -50,43 +35,10 @@ function formatDateLabel(d: string): string {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-// Per-(date, model) rows → 1 row per date with cost broken into the three
-// segments the stacked bar chart consumes. Stable sort by date asc so the
-// chart x-axis is left-to-right oldest-to-newest.
-export function aggregateDailyCost(usage: DashboardUsageDaily[]): DailyCostStack[] {
-  const map = new Map<string, { input: number; output: number; cacheWrite: number }>();
-  for (const u of usage) {
-    const b = estimateCostBreakdown(u);
-    const entry = map.get(u.date) ?? { input: 0, output: 0, cacheWrite: 0 };
-    entry.input += b.input;
-    entry.output += b.output;
-    entry.cacheWrite += b.cacheWrite;
-    map.set(u.date, entry);
-  }
-  const round = (n: number) => Math.round(n * 100) / 100;
-  return Array.from(map.entries())
-    .toSorted(([a], [b]) => a.localeCompare(b))
-    .map(([date, s]) => {
-      const input = round(s.input);
-      const output = round(s.output);
-      const cacheWrite = round(s.cacheWrite);
-      return {
-        date,
-        label: formatDateLabel(date),
-        input,
-        output,
-        cacheWrite,
-        total: round(input + output + cacheWrite),
-      };
-    });
-}
-
 // Per-(date, model) rows → 1 row per date with raw token counts split
-// across the four chart segments. Independent of pricing — unmapped
-// models still contribute here, even if they're excluded from cost.
-// Mirrors `aggregateByDate(...).dailyTokens` from the runtimes utils so
-// the Tokens chart on the Usage page consumes the same shape as the one
-// on the runtime-detail page.
+// across the four chart segments. Mirrors `aggregateByDate(...).dailyTokens`
+// from the runtimes utils so the Tokens chart on the Usage page consumes
+// the same shape as the one on the runtime-detail page.
 export function aggregateDailyTokens(usage: DashboardUsageDaily[]): DailyTokenData[] {
   const map = new Map<
     string,
@@ -122,7 +74,6 @@ export interface DashboardTokenTotals {
   output: number;
   cacheRead: number;
   cacheWrite: number;
-  cost: number;
   taskCount: number;
 }
 
@@ -138,45 +89,39 @@ export function computeDailyTotals(usage: DashboardUsageDaily[]): DashboardToken
       output: acc.output + u.output_tokens,
       cacheRead: acc.cacheRead + u.cache_read_tokens,
       cacheWrite: acc.cacheWrite + u.cache_write_tokens,
-      cost: acc.cost + estimateCost(u),
       taskCount: acc.taskCount + u.task_count,
     }),
-    { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, taskCount: 0 },
+    { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, taskCount: 0 },
   );
 }
 
-export interface AgentCostRow {
+export interface AgentTokenRow {
   agentId: string;
   tokens: number;
-  cost: number;
   taskCount: number;
 }
 
-// Fold per-(agent, model) rows into one row per agent. Cost is the sum
-// across this agent's models, which is the figure the user cares about.
-// Sort by cost desc so the heaviest spender lands first.
-export function aggregateAgentTokens(rows: DashboardUsageByAgent[]): AgentCostRow[] {
-  const map = new Map<string, AgentCostRow>();
+// Fold per-(agent, model) rows into one row per agent. Sort by tokens desc
+// so the heaviest-usage agent lands first.
+export function aggregateAgentTokens(rows: DashboardUsageByAgent[]): AgentTokenRow[] {
+  const map = new Map<string, AgentTokenRow>();
   for (const r of rows) {
     const entry = map.get(r.agent_id) ?? {
       agentId: r.agent_id,
       tokens: 0,
-      cost: 0,
       taskCount: 0,
     };
     entry.tokens +=
       r.input_tokens + r.output_tokens + r.cache_read_tokens + r.cache_write_tokens;
-    entry.cost += estimateCost(r);
     entry.taskCount += r.task_count;
     map.set(r.agent_id, entry);
   }
-  return Array.from(map.values()).toSorted((a, b) => b.cost - a.cost);
+  return Array.from(map.values()).toSorted((a, b) => b.tokens - a.tokens);
 }
 
 export interface AgentDashboardRow {
   agentId: string;
   tokens: number;
-  cost: number;
   seconds: number;
   taskCount: number;
 }
@@ -189,9 +134,9 @@ export interface AgentDashboardRow {
 // SQL). The token rollup's per-(agent, model) counts double-count a task
 // when it spans multiple models, so we only fall back to it for agents
 // with no terminal run yet (in-flight tasks reported tokens but haven't
-// completed). Sorted by cost desc, then run time desc.
+// completed). Sorted by tokens desc, then run time desc.
 export function mergeAgentDashboardRows(
-  tokenRows: AgentCostRow[],
+  tokenRows: AgentTokenRow[],
   runTimeRows: DashboardAgentRunTime[],
 ): AgentDashboardRow[] {
   const runTimeByAgent = new Map(
@@ -203,7 +148,6 @@ export function mergeAgentDashboardRows(
     merged.set(r.agentId, {
       agentId: r.agentId,
       tokens: r.tokens,
-      cost: r.cost,
       seconds: rt?.total_seconds ?? 0,
       taskCount: rt ? rt.task_count : r.taskCount,
     });
@@ -216,24 +160,23 @@ export function mergeAgentDashboardRows(
     merged.set(r.agent_id, {
       agentId: r.agent_id,
       tokens: 0,
-      cost: 0,
       seconds: r.total_seconds,
       taskCount: r.task_count,
     });
   }
   return Array.from(merged.values()).toSorted((a, b) => {
-    if (b.cost !== a.cost) return b.cost - a.cost;
+    if (b.tokens !== a.tokens) return b.tokens - a.tokens;
     return b.seconds - a.seconds;
   });
 }
 
 // ---------------------------------------------------------------------------
 // Weekly fold for run-time + tasks. Mirrors `aggregateByWeek` in
-// `runtimes/utils.ts` which already covers cost / tokens — same calendar
-// week semantics (Mon–Sun anchored at today-in-tz), same pre-zeroed buckets,
-// same partial-week metadata. Workspace dashboard uses the user-chosen
-// timezone here; the runtime page uses the runtime's IANA tz. Behaviour is
-// identical apart from where the tz comes from.
+// `runtimes/utils.ts` which covers tokens — same calendar week semantics
+// (Mon–Sun anchored at today-in-tz), same pre-zeroed buckets, same
+// partial-week metadata. Workspace dashboard uses the user-chosen
+// timezone here; the runtime page uses the runtime's IANA tz. Behaviour
+// is identical apart from where the tz comes from.
 // ---------------------------------------------------------------------------
 
 interface WeekShell {
@@ -326,7 +269,7 @@ export function aggregateWeeklyTasks(
 
 // Per-date run-time rows → one row per date with `totalSeconds` for the
 // DailyTimeChart. Sorted ascending so the x-axis reads oldest-to-newest,
-// matching the cost / tokens aggregators.
+// matching the tokens aggregator.
 export function aggregateDailyTime(rows: DashboardRunTimeDaily[]): DailyTimeData[] {
   return rows.toSorted((a, b) => a.date.localeCompare(b.date))
     .map((r) => ({

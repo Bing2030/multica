@@ -2,8 +2,6 @@ package handler
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -406,7 +404,6 @@ type revocationFixture struct {
 	AgentID      string
 	TaskID       string
 	DaemonID     string
-	TokenHash    string
 }
 
 func setupRevocationFixture(t *testing.T, slug, daemonID string) revocationFixture {
@@ -442,8 +439,8 @@ INSERT INTO "user" (name, email) VALUES ($1, $2) RETURNING id
 	}
 
 	// Cleanup ordering: workspace first (cascade clears agent_runtime,
-	// agent, member, daemon_token), then user (whose deletion would
-	// otherwise be blocked by agent.owner_id / agent_runtime.owner_id FKs).
+	// agent, member), then user (whose deletion would otherwise be blocked
+	// by agent.owner_id / agent_runtime.owner_id FKs).
 	t.Cleanup(func() {
 		_, _ = testPool.Exec(context.Background(), `DELETE FROM workspace WHERE id = $1`, wsID)
 		_, _ = testPool.Exec(context.Background(), `DELETE FROM "user" WHERE id = $1`, targetUserID)
@@ -489,17 +486,10 @@ RETURNING id
 		t.Fatalf("insert task: %v", err)
 	}
 
-	// daemon_token row — paired with the runtime's daemon_id so the
-	// revocation should sweep its hash up via DeleteDaemonTokensByWorkspaceAndDaemons.
-	rawToken := "mdt_test_" + slug
-	sum := sha256.Sum256([]byte(rawToken))
-	tokenHash := hex.EncodeToString(sum[:])
-	if _, err := testPool.Exec(ctx, `
-INSERT INTO daemon_token (token_hash, workspace_id, daemon_id, expires_at)
-VALUES ($1, $2, $3, now() + interval '1 day')
-`, tokenHash, wsID, daemonID); err != nil {
-		t.Fatalf("insert daemon_token: %v", err)
-	}
+	// THROWAWAY POC: daemon_token rows are gone with the rest of the login
+	// surface; the revocation fixture no longer seeds one. The agent-archive
+	// + task-cancel + force-offline writes below remain the production safety
+	// net and are what assertRevoked checks. NEVER MERGE.
 
 	return revocationFixture{
 		WorkspaceID:  wsID,
@@ -509,7 +499,6 @@ VALUES ($1, $2, $3, now() + interval '1 day')
 		AgentID:      agentID,
 		TaskID:       taskID,
 		DaemonID:     daemonID,
-		TokenHash:    tokenHash,
 	}
 }
 
@@ -548,21 +537,12 @@ func assertRevoked(t *testing.T, fx revocationFixture) {
 	if taskStatus != "cancelled" {
 		t.Fatalf("expected task cancelled, got %q", taskStatus)
 	}
-
-	var tokenExists bool
-	if err := testPool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM daemon_token WHERE token_hash = $1)`, fx.TokenHash).Scan(&tokenExists); err != nil {
-		t.Fatalf("query daemon_token: %v", err)
-	}
-	if tokenExists {
-		t.Fatal("daemon_token row was not deleted")
-	}
 }
 
 // TestDeleteMember_RevokesTargetRuntimes verifies that when an admin removes
 // another member from a workspace, every runtime owned by the removed member
-// has its agents archived, its in-flight tasks cancelled, its row flipped
-// offline, and its daemon_token rows deleted — all atomically with the member
-// row deletion.
+// has its agents archived, its in-flight tasks cancelled, and its row flipped
+// offline — all atomically with the member row deletion.
 func TestDeleteMember_RevokesTargetRuntimes(t *testing.T) {
 	fx := setupRevocationFixture(t, "handler-tests-revoke-kick", "daemon-revoke-kick")
 

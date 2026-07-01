@@ -20,16 +20,13 @@ import {
   dashboardAgentRunTimeOptions,
   dashboardRunTimeDailyOptions,
 } from "@multica/core/dashboard";
-import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { PageHeader } from "../../layout/page-header";
 import { KpiCard } from "../../runtimes/components/shared";
 import {
-  DailyCostChart,
   DailyTokensChart,
   DailyTimeChart,
   DailyTasksChart,
-  WeeklyCostChart,
   WeeklyTokensChart,
   WeeklyTimeChart,
   WeeklyTasksChart,
@@ -45,7 +42,6 @@ import {
 import { useT } from "../../i18n";
 import {
   aggregateAgentTokens,
-  aggregateDailyCost,
   aggregateDailyTasks,
   aggregateDailyTime,
   aggregateDailyTokens,
@@ -98,11 +94,6 @@ const EMPTY_DAILY: import("@multica/core/types").DashboardUsageDaily[] = [];
 const EMPTY_BY_AGENT: import("@multica/core/types").DashboardUsageByAgent[] = [];
 const EMPTY_RUNTIME: import("@multica/core/types").DashboardAgentRunTime[] = [];
 const EMPTY_RUNTIME_DAILY: import("@multica/core/types").DashboardRunTimeDaily[] = [];
-
-function fmtMoney(n: number): string {
-  if (n >= 100) return `$${n.toFixed(0)}`;
-  return `$${n.toFixed(2)}`;
-}
 
 // Local segmented control — same visual language the runtime usage section
 // uses for its period / tab toggles. shadcn's Tabs is wired for full tab
@@ -163,10 +154,6 @@ export function DashboardPage() {
     );
     if (!stillAllowed) setDays(DEFAULT_DAYS_BY_DIM[next]);
   };
-
-  // The user can save model prices from the runtimes page; re-render when
-  // they do so the dashboard reflects the new rates.
-  useCustomPricingStore((s) => s.pricings);
 
   const { data: projects = [] } = useQuery(projectListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
@@ -245,13 +232,9 @@ export function DashboardPage() {
     runTimeRows.length === 0 &&
     runTimeDailyRows.length === 0;
 
-  // Cost / token math — re-derived when usage, days, or pricings change.
+  // Token math — re-derived when usage or days change.
   const totals = useMemo(
     () => computeDailyTotals(dailyUsageInWindow),
-    [dailyUsageInWindow],
-  );
-  const dailyCost = useMemo(
-    () => aggregateDailyCost(dailyUsageInWindow),
     [dailyUsageInWindow],
   );
   const dailyTokens = useMemo(
@@ -277,7 +260,6 @@ export function DashboardPage() {
     () => aggregateByWeek(dailyUsage, viewTZ, weekCount),
     [dailyUsage, viewTZ, weekCount],
   );
-  const weeklyCost = weekly.weeklyCostStack;
   const weeklyTokens = weekly.weeklyTokens;
   const weeklyTime = useMemo(
     () => aggregateWeeklyTime(runTimeDailyRows, viewTZ, weekCount),
@@ -353,13 +335,8 @@ export function DashboardPage() {
             <DashboardEmpty />
           ) : (
             <>
-              {/* KPI row — same 3-divide-x card grid the runtime usage
-                  section uses, expanded to four tiles. */}
-              <div className="grid grid-cols-1 divide-y rounded-lg border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
-                <KpiCard
-                  label={t(($) => $.kpi.cost_label, { days })}
-                  value={fmtMoney(totals.cost)}
-                />
+              {/* KPI row — three tiles: tokens, run time, tasks. */}
+              <div className="grid grid-cols-1 divide-y rounded-lg border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                 <KpiCard
                   label={t(($) => $.kpi.tokens_label, { days })}
                   value={formatTokens(
@@ -390,18 +367,16 @@ export function DashboardPage() {
                 />
               </div>
 
-              {/* Trend chart — toggle picks Tokens / Cost / Time / Tasks
+              {/* Trend chart — toggle picks Tokens / Time / Tasks
                   and the parent's dim selector decides whether the bars are
-                  per-day or per-calendar-week. All four metrics share the
+                  per-day or per-calendar-week. All three metrics share the
                   same x-axis so the user can mentally overlay them by
                   flipping the toggle. */}
               <TrendBlock
                 dim={dim}
-                dailyCost={dailyCost}
                 dailyTokens={dailyTokens}
                 dailyTime={dailyTime}
                 dailyTasks={dailyTasks}
-                weeklyCost={weeklyCost}
                 weeklyTokens={weeklyTokens}
                 weeklyTime={weeklyTime}
                 weeklyTasks={weeklyTasks}
@@ -480,26 +455,22 @@ function ProjectFilter({
   );
 }
 
-type DailyMetric = "tokens" | "cost" | "time" | "tasks";
+type DailyMetric = "tokens" | "time" | "tasks";
 
 function TrendBlock({
   dim,
-  dailyCost,
   dailyTokens,
   dailyTime,
   dailyTasks,
-  weeklyCost,
   weeklyTokens,
   weeklyTime,
   weeklyTasks,
   lessThanMinuteLabel,
 }: {
   dim: Dim;
-  dailyCost: ReturnType<typeof aggregateDailyCost>;
   dailyTokens: ReturnType<typeof aggregateDailyTokens>;
   dailyTime: ReturnType<typeof aggregateDailyTime>;
   dailyTasks: ReturnType<typeof aggregateDailyTasks>;
-  weeklyCost: ReturnType<typeof aggregateByWeek>["weeklyCostStack"];
   weeklyTokens: ReturnType<typeof aggregateByWeek>["weeklyTokens"];
   weeklyTime: ReturnType<typeof aggregateWeeklyTime>;
   weeklyTasks: ReturnType<typeof aggregateWeeklyTasks>;
@@ -511,12 +482,10 @@ function TrendBlock({
   // Empty-state is per-metric so each toggle option independently decides
   // whether it has data — e.g. tokens recorded but no terminal runs yet
   // should show Tokens normally while Time / Tasks fall through to empty.
-  const costData = dim === "weekly" ? weeklyCost : dailyCost;
   const tokensData = dim === "weekly" ? weeklyTokens : dailyTokens;
   const timeData = dim === "weekly" ? weeklyTime : dailyTime;
   const tasksData = dim === "weekly" ? weeklyTasks : dailyTasks;
 
-  const totalCost = costData.reduce((sum, d) => sum + d.total, 0);
   const totalTokens = tokensData.reduce(
     (sum, d) => sum + d.input + d.output + d.cacheRead + d.cacheWrite,
     0,
@@ -527,30 +496,24 @@ function TrendBlock({
     0,
   );
   const isEmpty =
-    metric === "cost"
-      ? totalCost === 0
-      : metric === "tokens"
-        ? totalTokens === 0
-        : metric === "time"
-          ? totalSeconds === 0
-          : totalTasks === 0;
+    metric === "tokens"
+      ? totalTokens === 0
+      : metric === "time"
+        ? totalSeconds === 0
+        : totalTasks === 0;
 
   const title =
     dim === "weekly"
-      ? metric === "cost"
-        ? t(($) => $.weekly.title_cost)
-        : metric === "tokens"
-          ? t(($) => $.weekly.title_tokens)
-          : metric === "time"
-            ? t(($) => $.weekly.title_time)
-            : t(($) => $.weekly.title_tasks)
-      : metric === "cost"
-        ? t(($) => $.daily.title_cost)
-        : metric === "tokens"
-          ? t(($) => $.daily.title_tokens)
-          : metric === "time"
-            ? t(($) => $.daily.title_time)
-            : t(($) => $.daily.title_tasks);
+      ? metric === "tokens"
+        ? t(($) => $.weekly.title_tokens)
+        : metric === "time"
+          ? t(($) => $.weekly.title_time)
+          : t(($) => $.weekly.title_tasks)
+      : metric === "tokens"
+        ? t(($) => $.daily.title_tokens)
+        : metric === "time"
+          ? t(($) => $.daily.title_time)
+          : t(($) => $.daily.title_tasks);
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -561,7 +524,6 @@ function TrendBlock({
           onChange={setMetric}
           options={[
             { label: t(($) => $.daily.metric_tokens), value: "tokens" as const },
-            { label: t(($) => $.daily.metric_cost), value: "cost" as const },
             { label: t(($) => $.daily.metric_time), value: "time" as const },
             { label: t(($) => $.daily.metric_tasks), value: "tasks" as const },
           ]}
@@ -576,9 +538,7 @@ function TrendBlock({
             </p>
           </div>
         ) : dim === "weekly" ? (
-          metric === "cost" ? (
-            <WeeklyCostChart data={weeklyCost} />
-          ) : metric === "tokens" ? (
+          metric === "tokens" ? (
             <WeeklyTokensChart data={weeklyTokens} />
           ) : metric === "time" ? (
             <WeeklyTimeChart
@@ -589,8 +549,6 @@ function TrendBlock({
           ) : (
             <WeeklyTasksChart data={weeklyTasks} />
           )
-        ) : metric === "cost" ? (
-          <DailyCostChart data={dailyCost} />
         ) : metric === "tokens" ? (
           <DailyTokensChart data={dailyTokens} />
         ) : metric === "time" ? (
@@ -610,11 +568,10 @@ function TrendBlock({
 // Which metric ranks the leaderboard. Drives row order, progress bar
 // width, and which column header is emphasised — keeping the three in
 // lockstep so the user always sees what the ranking actually measures.
-type LeaderboardSort = "tokens" | "cost" | "time" | "tasks";
+type LeaderboardSort = "tokens" | "time" | "tasks";
 
 const SORT_METRIC: Record<LeaderboardSort, (r: AgentDashboardRow) => number> = {
   tokens: (r) => r.tokens,
-  cost: (r) => r.cost,
   time: (r) => r.seconds,
   tasks: (r) => r.taskCount,
 };
@@ -634,7 +591,6 @@ function Leaderboard({
   const sortOptions = useMemo(
     () => [
       { value: "tokens" as const, label: t(($) => $.leaderboard.header_tokens) },
-      { value: "cost" as const, label: t(($) => $.leaderboard.header_cost) },
       { value: "time" as const, label: t(($) => $.leaderboard.header_time) },
       { value: "tasks" as const, label: t(($) => $.leaderboard.header_tasks) },
     ],
@@ -676,11 +632,10 @@ function Leaderboard({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_5rem_5rem_5rem_4rem] items-center gap-3 border-b px-4 py-2 text-xs font-medium text-muted-foreground">
+          <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_5rem_5rem_4rem] items-center gap-3 border-b px-4 py-2 text-xs font-medium text-muted-foreground">
             <span>{t(($) => $.leaderboard.header_agent)}</span>
             <span />
             <span className={colClass("tokens")}>{t(($) => $.leaderboard.header_tokens)}</span>
-            <span className={colClass("cost")}>{t(($) => $.leaderboard.header_cost)}</span>
             <span className={colClass("time")}>{t(($) => $.leaderboard.header_time)}</span>
             <span className={colClass("tasks")}>{t(($) => $.leaderboard.header_tasks)}</span>
           </div>
@@ -692,7 +647,7 @@ function Leaderboard({
               return (
                 <div
                   key={row.agentId}
-                  className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_5rem_5rem_5rem_4rem] items-center gap-3 px-4 py-2"
+                  className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_5rem_5rem_4rem] items-center gap-3 px-4 py-2"
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <ActorAvatar
@@ -715,11 +670,6 @@ function Leaderboard({
                     className={`text-right text-xs tabular-nums ${sortBy === "tokens" ? "font-medium text-foreground" : "text-muted-foreground"}`}
                   >
                     {formatTokens(row.tokens)}
-                  </div>
-                  <div
-                    className={`text-right tabular-nums ${sortBy === "cost" ? "text-sm font-medium" : "text-xs text-muted-foreground"}`}
-                  >
-                    ${row.cost.toFixed(2)}
                   </div>
                   <div
                     className={`text-right text-xs tabular-nums ${sortBy === "time" ? "font-medium text-foreground" : "text-muted-foreground"}`}

@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { NewWorkspacePage } from "@multica/views/workspace/new-workspace-page";
 import { InvitePage } from "@multica/views/invite";
 import { InvitationsPage } from "@multica/views/invitations";
-import { OnboardingFlow } from "@multica/views/onboarding";
 import { useNavigation } from "@multica/views/navigation";
 import { paths } from "@multica/core/paths";
 import { workspaceListOptions } from "@multica/core/workspace/queries";
@@ -10,21 +9,20 @@ import { useWindowOverlayStore } from "@/stores/window-overlay-store";
 
 /**
  * Window-level transition overlay: renders above the tab system when the
- * user is in a pre-workspace flow (onboarding, create workspace, accept
- * invite).
+ * user is in a pre-workspace flow (create workspace, accept invite).
  *
  * This component is intentionally thin — just a fixed positioning shell
  * that covers the tab system. It does NOT hide traffic lights or provide
- * a drag strip: each contained view (OnboardingFlow, NewWorkspacePage,
- * InvitePage) renders its own `<DragStrip />` as a flex-child at top so
- * native macOS traffic lights stay visible and the page content can fill
- * the window edge-to-edge. This matches the Linear/Notion/Arc pattern for
- * pre-dashboard flows and keeps platform chrome consistent across every
- * "not-in-dashboard" surface.
+ * a drag strip: each contained view (NewWorkspacePage, InvitePage) renders
+ * its own `<DragStrip />` as a flex-child at top so native macOS traffic
+ * lights stay visible and the page content can fill the window edge-to-edge.
  *
- * All UX affordances (Back button, Log out button, welcome copy, invite
- * card) live inside the shared view components under `packages/views/`,
- * so web and desktop render identical content.
+ * All UX affordances (Back button, welcome copy, invite card) live inside
+ * the shared view components under `packages/views/`, so web and desktop
+ * render identical content.
+ *
+ * THROWAWAY POC: the onboarding overlay was removed — under DevBypass the
+ * dev user is always provisioned into a workspace. NEVER MERGE.
  */
 export function WindowOverlay() {
   const overlay = useWindowOverlayStore((s) => s.overlay);
@@ -41,8 +39,7 @@ function WindowOverlayInner() {
   if (!overlay) return null;
 
   // Back is only meaningful when there's somewhere to go — i.e. the user
-  // has at least one workspace. Zero-workspace users can only Log out or
-  // complete the flow.
+  // has at least one workspace.
   const onBack = wsList.length > 0 ? close : undefined;
 
   return (
@@ -60,29 +57,6 @@ function WindowOverlayInner() {
         />
       )}
       {overlay.type === "invitations" && <InvitationsPage />}
-      {overlay.type === "onboarding" && (
-        <OnboardingFlow
-          onComplete={(ws, issueId) => {
-            close();
-            // Runtime-connected onboarding lands on its single guide
-            // issue. Runtime-less exits still land on the issues list.
-            if (ws && issueId) {
-              push(paths.workspace(ws.slug).issueDetail(issueId));
-            } else if (ws) {
-              push(paths.workspace(ws.slug).issues());
-            } else {
-              push(paths.root());
-            }
-          }}
-          // Restart the bundled daemon when the user hits Refresh on
-          // Step 3. The daemon's PATH probe runs once at boot, so a
-          // newly-installed CLI (Claude / Codex / Cursor) doesn't show
-          // up until the daemon is bounced.
-          onRuntimeRefresh={async () => {
-            await window.daemonAPI?.restart?.();
-          }}
-        />
-      )}
     </div>
   );
 }

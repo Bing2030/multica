@@ -79,10 +79,12 @@ export function WSProvider({
   useEffect(() => {
     if (!user || !wsSlug) return;
 
-    // In token mode we need a token from storage; in cookie mode the HttpOnly
-    // cookie is sent automatically with the WS upgrade request.
+    // THROWAWAY POC: the server's /ws is DevBypass-wrapped, so the upgrade is
+    // authorized by the X-User-ID header with no client-held token. cookieAuth
+    // no longer changes behavior — web and desktop both connect token-less.
+    // The token read is retained only so a stray stored token is still attached
+    // for legacy servers; under DevBypass it is ignored. NEVER MERGE.
     const token = cookieAuth ? null : storage.getItem("multica_token");
-    if (!cookieAuth && !token) return;
 
     const ws = new WSClient(wsUrl, {
       logger: createLogger("ws"),

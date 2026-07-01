@@ -227,8 +227,8 @@ export function InboxPage() {
       <div className="flex items-center gap-2">
         <h1 className="text-sm font-semibold">{t(($) => $.page.title)}</h1>
         {unreadCount > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {unreadCount}
+          <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand px-1.5 text-xs font-medium text-brand-foreground tabular-nums">
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </div>

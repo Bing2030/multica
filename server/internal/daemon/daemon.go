@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -112,6 +113,13 @@ type Daemon struct {
 	versionsMu    sync.RWMutex      // guards agentVersions
 	agentVersions map[string]string // provider -> detected CLI version (set during registration)
 
+	// authProbe caches per-provider pre-flight auth state (currently only
+	// codex) so a runtime whose CLI isn't logged in fails tasks fast with an
+	// auth reason instead of stalling for the first-turn-no-progress timeout
+	// and then churning a retry. See probeCodexAuth / codexAuthState.
+	authProbeMu    sync.Mutex
+	authProbeCache map[string]authProbeResult
+
 	wsHBMu      sync.RWMutex         // guards wsHBLastAck
 	wsHBLastAck map[string]time.Time // runtime_id -> last successful WS heartbeat ack timestamp
 
@@ -189,6 +197,7 @@ func New(cfg Config, logger *slog.Logger) *Daemon {
 		runtimeIndex:              make(map[string]Runtime),
 		runtimeSet:                newRuntimeSetWatcher(),
 		agentVersions:             make(map[string]string),
+		authProbeCache:            make(map[string]authProbeResult),
 		wsHBLastAck:               make(map[string]time.Time),
 		activeEnvRoots:            make(map[string]int),
 		localPathLocks:            NewLocalPathLocker(),
@@ -216,6 +225,85 @@ func (d *Daemon) agentVersion(provider string) string {
 	d.versionsMu.RLock()
 	defer d.versionsMu.RUnlock()
 	return d.agentVersions[provider]
+}
+
+// authProbeResult is the cached outcome of a pre-flight provider-auth probe.
+type authProbeResult struct {
+	state     string // "authed" | "not_authed" | "unknown"
+	checkedAt time.Time
+	msg       string // short captured output when not authenticated
+}
+
+const (
+	codexAuthProbeTimeout = 5 * time.Second
+	authProbeStaleAfter   = 5 * time.Minute
+)
+
+// probeCodexAuth runs `codex login status` to detect whether the codex CLI is
+// authenticated on this host. It deliberately uses the host-default CODEX_HOME
+// (~/.codex/auth.json) — the per-task CODEX_HOME set during execution is for
+// MCP config only and does not relocate auth, so the host account is what the
+// task ultimately authenticates against. Best-effort: a timeout or exec error
+// returns "unknown" so a flaky probe never blocks a real task.
+func (d *Daemon) probeCodexAuth(ctx context.Context) authProbeResult {
+	execPath := "codex"
+	if entry, ok := d.cfg.Agents["codex"]; ok && entry.Path != "" {
+		execPath = entry.Path
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, codexAuthProbeTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(probeCtx, execPath, "login", "status")
+	// Daemon process env (PATH etc.) but never CODEX_HOME — see docstring.
+	cmd.Env = os.Environ()
+	out, err := cmd.Output()
+	if err != nil {
+		if probeCtx.Err() != nil {
+			d.logger.Debug("codex auth probe timed out (fail-open)", "error", err)
+			return authProbeResult{state: "unknown", checkedAt: time.Now()}
+		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			// Binary ran but exited non-zero — codex reports "not logged in"
+			// this way. Capture its stderr for the failure message.
+			return authProbeResult{state: "not_authed", checkedAt: time.Now(), msg: strings.TrimSpace(string(exitErr.Stderr))}
+		}
+		// LookPath / exec failure — inconclusive, don't block.
+		d.logger.Debug("codex auth probe exec failed (fail-open)", "error", err)
+		return authProbeResult{state: "unknown", checkedAt: time.Now()}
+	}
+	if strings.Contains(strings.ToLower(string(out)), "logged in") {
+		return authProbeResult{state: "authed", checkedAt: time.Now()}
+	}
+	return authProbeResult{state: "not_authed", checkedAt: time.Now(), msg: strings.TrimSpace(string(out))}
+}
+
+// codexAuthState returns the cached codex auth state, re-probing synchronously
+// when the cache is empty or stale. Called from handleTask at claim time; the
+// bounded probe (≤ codexAuthProbeTimeout) trades a short check for avoiding a
+// 30s+ first-turn stall on an unauthenticated runtime.
+func (d *Daemon) codexAuthState() string {
+	d.authProbeMu.Lock()
+	cached, ok := d.authProbeCache["codex"]
+	d.authProbeMu.Unlock()
+	if ok && time.Since(cached.checkedAt) < authProbeStaleAfter {
+		return cached.state
+	}
+	fresh := d.probeCodexAuth(context.Background())
+	d.authProbeMu.Lock()
+	if d.authProbeCache == nil {
+		d.authProbeCache = make(map[string]authProbeResult)
+	}
+	d.authProbeCache["codex"] = fresh
+	d.authProbeMu.Unlock()
+	return fresh.state
+}
+
+// invalidateCodexAuthCache forces the next codexAuthState() call to re-probe,
+// so a `codex login` the operator just ran is picked up on the next claim.
+func (d *Daemon) invalidateCodexAuthCache() {
+	d.authProbeMu.Lock()
+	delete(d.authProbeCache, "codex")
+	d.authProbeMu.Unlock()
 }
 
 func (d *Daemon) notifyRuntimeSetChanged() {
@@ -765,6 +853,21 @@ func (d *Daemon) registerRuntimesForWorkspace(ctx context.Context, workspaceID s
 		}
 		d.setAgentVersion(name, version)
 		d.logger.Debug("agent version detected", "name", name, "version", version, "path", entry.Path)
+		// Pre-flight auth probe for codex: cache the host login state so tasks
+		// on an unauthenticated runtime fail fast instead of stalling.
+		if name == "codex" {
+			if r := d.probeCodexAuth(ctx); r.state != "unknown" {
+				d.authProbeMu.Lock()
+				if d.authProbeCache == nil {
+					d.authProbeCache = make(map[string]authProbeResult)
+				}
+				d.authProbeCache["codex"] = r
+				d.authProbeMu.Unlock()
+				if r.state == "not_authed" {
+					d.logger.Warn("codex runtime is not authenticated; tasks will fail fast until `codex login` is run", "msg", r.msg)
+				}
+			}
+		}
 		displayName := strings.ToUpper(name[:1]) + name[1:]
 		if d.cfg.DeviceName != "" {
 			displayName = fmt.Sprintf("%s (%s)", displayName, d.cfg.DeviceName)
@@ -2234,6 +2337,21 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 		"reuse_workdir", task.PriorWorkDir != "",
 	)
 
+	// Pre-flight auth gate: if this codex runtime's CLI isn't authenticated,
+	// fail the task fast with an actionable reason instead of stalling ~30s
+	// for the first-turn-no-progress timeout (and then churning a retry).
+	// Best-effort: an inconclusive probe ("unknown") never blocks.
+	if provider == "codex" && d.codexAuthState() == "not_authed" {
+		msg := "codex is not authenticated on this runtime — run `codex login` (or set OPENAI_API_KEY) on the host, then rerun"
+		taskLog.Warn("failing task: codex not authenticated", "provider", provider)
+		if failErr := d.client.FailTask(ctx, task.ID, msg, "", "", taskfailure.ReasonAgentProviderAuthOrAccess.String()); failErr != nil {
+			taskLog.Error("fail task callback failed (codex auth probe)", "error", failErr)
+		}
+		// Re-probe on the next claim so a fresh `codex login` is picked up.
+		d.invalidateCodexAuthCache()
+		return
+	}
+
 	// If the task targets a project_resource of type local_directory that
 	// is pinned to this daemon, acquire the path mutex before runner.run
 	// so the server-side state machine is dispatched →
@@ -3093,11 +3211,22 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			comment = fmt.Sprintf("%s timed out after %s", provider, d.cfg.AgentTimeout)
 		}
 		failureReason := "timeout"
-		if reason, ok := classifyResumeUnsafeTimeout(provider, comment); ok {
+		// Prefer a specific provider reason when the timeout message carries
+		// one (auth/quota/rate-limit surfaced via stderr or codex retry-error
+		// text). Auth/quota are non-retryable, so this kills the pointless
+		// retry churn a stall otherwise produces. Only fall back to the generic
+		// resume-unsafe inactivity bucket when no provider signal is present.
+		reason, classified, invalidateAuth := classifyTimeoutFailureReason(provider, comment)
+		failureReason = reason
+		if invalidateAuth {
+			// A run-time auth failure means the cached login probe is stale
+			// (quota/no-access isn't caught by `codex login status`); force a
+			// re-probe so the next claim re-checks the host login state.
+			d.invalidateCodexAuthCache()
+		} else if !classified && reason != "timeout" {
 			taskLog.Warn("agent timed out with resume-unsafe session, classifying as blocked",
 				"failure_reason", reason,
 			)
-			failureReason = reason
 		}
 		return TaskResult{
 			Status:        "blocked",

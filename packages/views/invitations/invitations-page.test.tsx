@@ -7,28 +7,20 @@ import {
 
 const {
   navigate,
-  logout,
   refreshMe,
   acceptInvitation,
-  markOnboardingComplete,
   listMyInvitations,
   listWorkspaces,
 } = vi.hoisted(() => ({
   navigate: vi.fn(),
-  logout: vi.fn(),
   refreshMe: vi.fn(),
   acceptInvitation: vi.fn(),
-  markOnboardingComplete: vi.fn(),
   listMyInvitations: vi.fn(),
   listWorkspaces: vi.fn(),
 }));
 
 vi.mock("../navigation", () => ({
   useNavigation: () => ({ push: navigate, replace: navigate }),
-}));
-
-vi.mock("../auth", () => ({
-  useLogout: () => logout,
 }));
 
 vi.mock("../platform", () => ({
@@ -50,7 +42,6 @@ vi.mock("@multica/core/auth", () => ({
 vi.mock("@multica/core/api", () => ({
   api: {
     acceptInvitation,
-    markOnboardingComplete,
     listMyInvitations,
     listWorkspaces,
   },
@@ -105,15 +96,12 @@ const mkWs = (id: string, slug: string) => ({
 describe("InvitationsPage", () => {
   beforeEach(() => {
     navigate.mockReset();
-    logout.mockReset();
     refreshMe.mockReset();
     acceptInvitation.mockReset();
-    markOnboardingComplete.mockReset();
     listMyInvitations.mockReset();
     listWorkspaces.mockReset();
     refreshMe.mockResolvedValue(undefined);
     acceptInvitation.mockResolvedValue({});
-    markOnboardingComplete.mockResolvedValue({});
   });
 
   it("renders pending invitations with workspace names", async () => {
@@ -128,18 +116,17 @@ describe("InvitationsPage", () => {
     });
   });
 
-  it("with no selections, submitting routes to /onboarding", async () => {
+  it("with no selections, submitting routes back to the default workspace", async () => {
     listMyInvitations.mockResolvedValue([mkInvite("inv-1", "ws-1", "Acme")]);
     renderWithClient();
     await waitFor(() => screen.getByText("Acme"));
     fireEvent.click(screen.getByRole("button", { name: /skip/i }));
-    expect(navigate).toHaveBeenCalledWith("/onboarding");
-    // Empty submit doesn't accept anything or touch onboarding state.
+    expect(navigate).toHaveBeenCalledWith("/");
+    // Empty submit doesn't accept anything.
     expect(acceptInvitation).not.toHaveBeenCalled();
-    expect(markOnboardingComplete).not.toHaveBeenCalled();
   });
 
-  it("accepts selected invitations, marks onboarded, navigates to first ws", async () => {
+  it("accepts selected invitations, refreshes, navigates to first ws", async () => {
     listMyInvitations.mockResolvedValue([
       mkInvite("inv-1", "ws-1", "Acme"),
       mkInvite("inv-2", "ws-2", "Beta"),
@@ -155,16 +142,12 @@ describe("InvitationsPage", () => {
 
     await waitFor(() => {
       expect(acceptInvitation).toHaveBeenCalledWith("inv-1");
-      expect(markOnboardingComplete).toHaveBeenCalledWith({
-        completion_path: "invite_accept",
-        workspace_id: "ws-1",
-      });
       expect(refreshMe).toHaveBeenCalled();
       expect(navigate).toHaveBeenCalledWith("/acme/issues");
     });
   });
 
-  it("empty list falls through to onboarding via Continue button", async () => {
+  it("empty list returns to the default workspace via Continue button", async () => {
     listMyInvitations.mockResolvedValue([]);
     renderWithClient();
 
@@ -174,6 +157,6 @@ describe("InvitationsPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /continue to setup/i }),
     );
-    expect(navigate).toHaveBeenCalledWith("/onboarding");
+    expect(navigate).toHaveBeenCalledWith("/");
   });
 });

@@ -12,32 +12,28 @@ import {
 import { paths } from "@multica/core/paths";
 import type { Invitation } from "@multica/core/types";
 import { useNavigation } from "../navigation";
-import { useLogout } from "../auth";
 import { DragStrip } from "../platform";
 import { useT } from "../i18n";
 import { Button } from "@multica/ui/components/ui/button";
 import { Card, CardContent } from "@multica/ui/components/ui/card";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { LogOut, Mail, Users } from "lucide-react";
+import { Mail, Users } from "lucide-react";
 
 /**
- * Batch invitation handling page for first-contact users who land here
- * because callback / login detected pending invitations on their email.
+ * Batch invitation handling page.
  *
- * Design:
- *  - This route is only reachable for un-onboarded users (the entry-point
- *    judgment in callback/login routes already-onboarded users straight
- *    into their workspace; new invites for those users surface in the
- *    sidebar's pending-invitations dropdown instead).
- *  - The user picks zero or more invitations to accept. "Submit" then:
- *      • zero selected → continue to /onboarding
- *      • ≥1 selected → accept each, mark onboarding complete, navigate
- *        into the first accepted workspace.
- *  - Unselected invitations are intentionally left as `pending` in the DB.
- *    The user can later decline them from the sidebar; we don't auto-decline
- *    here because closing/refreshing this page should not be a destructive
- *    action.
+ * The user picks zero or more invitations to accept. "Submit" then:
+ *   • zero selected → return to the default workspace
+ *   • ≥1 selected → accept each, refresh, navigate into the first accepted
+ *     workspace.
+ * Unselected invitations are intentionally left as `pending` in the DB. The
+ * user can later decline them from the sidebar; we don't auto-decline here
+ * because closing/refreshing this page should not be a destructive action.
+ *
+ * THROWAWAY POC: under DevBypass there is no onboarding hand-off (the dev user
+ * is already provisioned into a workspace) and no "log out" affordance (the
+ * next request re-stamps the same dev user). NEVER MERGE.
  */
 export function InvitationsPage() {
   const { t } = useT("invite");
@@ -66,10 +62,10 @@ export function InvitationsPage() {
   const handleSubmit = async () => {
     setError(null);
 
-    // Zero selected: hand off to onboarding. Pending invites stay pending and
-    // can be picked up later from the sidebar.
+    // Zero selected: return to the default workspace. Pending invites stay
+    // pending and can be picked up later from the sidebar.
     if (selected.size === 0) {
-      push(paths.onboarding());
+      push(paths.root());
       return;
     }
 
@@ -85,15 +81,7 @@ export function InvitationsPage() {
         (inv) => inv.id === acceptedIds[0],
       );
 
-      // markOnboardingComplete is a frontend-side belt to the backend braces:
-      // each AcceptInvitation transaction already sets onboarded_at via
-      // MarkUserOnboarded, but calling this from the client makes sure the
-      // returned `User` is freshly written and gives refreshMe something
-      // canonical to read.
-      await api.markOnboardingComplete({
-        completion_path: "invite_accept",
-        workspace_id: firstAcceptedInvite?.workspace_id,
-      });
+      // Refresh the user so any membership-derived state is current.
       await useAuthStore.getState().refreshMe();
 
       qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
@@ -108,8 +96,8 @@ export function InvitationsPage() {
 
       // If we can't resolve the just-accepted workspace by id (shouldn't
       // happen — the backend just inserted the membership and we just
-      // refetched), fall back to the resolver. Don't blindly route to
-      // wsList[0]: that could teleport the user into an unrelated old
+      // refetched), fall back to creating a new workspace. Don't blindly route
+      // to wsList[0]: that could teleport the user into an unrelated old
       // workspace they happen to also belong to.
       push(
         targetWs ? paths.workspace(targetWs.slug).issues() : paths.newWorkspace(),
@@ -120,12 +108,9 @@ export function InvitationsPage() {
           ? e.message
           : t(($) => $.batch.error_generic),
       );
-      // Partial success: any accepts that landed before the failure ALREADY
-      // set onboarded_at on the backend (the AcceptInvitation transaction
-      // is atomic per invite). Refresh local user + workspace state so the
-      // sidebar reflects the partial accept and the user isn't stuck with a
-      // stale `onboarded_at == null` view. The next submit is safe — the
-      // server returns 4xx on re-accept and the catch path will surface that.
+      // Partial success: any accepts that landed before the failure already
+      // created the membership on the backend. Refresh local user + workspace
+      // state so the sidebar reflects the partial accept.
       if (acceptedIds.length > 0) {
         await useAuthStore.getState().refreshMe().catch(() => {});
         qc.invalidateQueries({ queryKey: workspaceKeys.list() });
@@ -152,9 +137,9 @@ export function InvitationsPage() {
     );
   }
 
-  // Empty / error: send the user on to onboarding so they're never stuck.
-  // Genuine fetch failure is rare; treating it as "no invites" is safer than
-  // trapping the user on an error screen they can't act on.
+  // Empty / error: return the user to the default workspace so they're never
+  // stuck. Genuine fetch failure is rare; treating it as "no invites" is safer
+  // than trapping the user on an error screen they can't act on.
   if (fetchError || !invitations || invitations.length === 0) {
     return (
       <InvitationsShell>
@@ -167,7 +152,7 @@ export function InvitationsPage() {
             <p className="text-sm text-muted-foreground text-center">
               {t(($) => $.batch.empty_hint)}
             </p>
-            <Button onClick={() => push(paths.onboarding())}>
+            <Button onClick={() => push(paths.root())}>
               {t(($) => $.batch.empty_continue)}
             </Button>
           </CardContent>
@@ -269,20 +254,9 @@ function InvitationRow({
 }
 
 function InvitationsShell({ children }: { children: ReactNode }) {
-  const { t } = useT("invite");
-  const logout = useLogout();
   return (
     <div className="relative flex min-h-svh flex-col bg-background">
       <DragStrip />
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute top-16 right-12 text-muted-foreground hover:text-destructive"
-        onClick={logout}
-      >
-        <LogOut />
-        {t(($) => $.batch.log_out)}
-      </Button>
       <div className="flex flex-1 flex-col items-center justify-center px-6 pb-12">
         {children}
       </div>

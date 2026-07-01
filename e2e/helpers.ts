@@ -28,9 +28,12 @@ export async function reloadAppPage(page: Page) {
 }
 
 /**
- * Log in as the default E2E user and ensure the workspace exists first.
- * Authenticates via API (send-code → DB read → verify-code), then injects
- * the token into localStorage so the browser session is authenticated.
+ * Ensure the E2E workspace exists and land the browser on its issues page.
+ *
+ * THROWAWAY POC: under DevBypass there is no login — the server stamps the dev
+ * user on every request, so the browser session is already "authenticated"
+ * via getMe() with no token to inject. `login` is a no-op kept for
+ * call-site compatibility. NEVER MERGE.
  *
  * Returns the E2E workspace slug so callers can build workspace-scoped URLs.
  */
@@ -41,31 +44,23 @@ export async function loginAsDefault(page: Page): Promise<string> {
     `E2E Workspace ${E2E_WORKER}`,
     DEFAULT_E2E_WORKSPACE,
   );
-  await api.markUserOnboarded();
 
-  const token = api.getToken();
-  if (!token) {
-    throw new Error("E2E login did not return an auth token");
-  }
-
-  await page.addInitScript((t) => {
-    localStorage.setItem("multica_token", t);
+  await page.addInitScript(() => {
     localStorage.setItem("multica:chat:isOpen", "false");
-  }, token);
+  });
   await page.goto(`/${workspace.slug}/issues`, { waitUntil: "domcontentloaded" });
   await waitForIssuesPage(page);
   return workspace.slug;
 }
 
 /**
- * Create a TestApiClient logged in as the default E2E user.
+ * Create a TestApiClient against the shared dev user (DevBypass).
  * Call api.cleanup() in afterEach to remove test data created during the test.
  */
 export async function createTestApi(): Promise<TestApiClient> {
   const api = new TestApiClient();
   await api.login(DEFAULT_E2E_EMAIL, DEFAULT_E2E_NAME);
   await api.ensureWorkspace(`E2E Workspace ${E2E_WORKER}`, DEFAULT_E2E_WORKSPACE);
-  await api.markUserOnboarded();
   return api;
 }
 
