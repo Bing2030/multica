@@ -120,19 +120,14 @@ func envDuration(name string, def time.Duration) time.Duration {
 func main() {
 	logger.Init()
 
-	// Warn about missing configuration
-	if os.Getenv("JWT_SECRET") == "" {
-		slog.Warn("JWT_SECRET is not set — using insecure default. Set JWT_SECRET for production use.")
-	}
+	// Warn about missing configuration.
+	// THROWAWAY POC: the JWT_SECRET + MULTICA_DEV_VERIFICATION_CODE warnings
+	// are gone with the login surface — DevBypass is the sole identity path and
+	// no verification codes are minted. The email backend is still used for
+	// invitation delivery (a kept workspace feature), so its warning stays.
+	// NEVER MERGE.
 	if os.Getenv("RESEND_API_KEY") == "" && strings.TrimSpace(os.Getenv("SMTP_HOST")) == "" {
-		slog.Warn("no email backend configured (RESEND_API_KEY and SMTP_HOST both empty) — verification codes will be printed to the log instead of emailed.")
-	}
-	if os.Getenv("MULTICA_DEV_VERIFICATION_CODE") != "" {
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
-			slog.Warn("MULTICA_DEV_VERIFICATION_CODE is set but ignored because APP_ENV=production.")
-		} else {
-			slog.Warn("MULTICA_DEV_VERIFICATION_CODE is enabled. Use it only for local development or private test instances.")
-		}
+		slog.Warn("no email backend configured (RESEND_API_KEY and SMTP_HOST both empty) — invitation emails will be skipped/logged instead of sent.")
 	}
 
 	port := os.Getenv("PORT")
@@ -329,6 +324,10 @@ func main() {
 	taskSvc.Metrics = businessMetrics
 	autopilotSvc := service.NewAutopilotService(queries, pool, bus, taskSvc)
 	registerAutopilotListeners(bus, autopilotSvc)
+	// POC runs-as-a-service outbound webhook channel (RFC channel 2).
+	// No-op unless MULTICA_ENABLE_POC_RUNS_API=1; delivers signed run payloads
+	// to per-run result_callback URLs on task completion.
+	registerRunCallbackListeners(bus, queries, &http.Client{Timeout: runCallbackHTTPTimeout})
 
 	// Construct a LivenessStore that mirrors the one wired into the HTTP
 	// handler. Both the heartbeat write path (handler) and the sweeper read

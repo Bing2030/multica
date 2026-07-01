@@ -250,15 +250,6 @@ type DaemonConnection struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
-type DaemonToken struct {
-	ID          pgtype.UUID        `json:"id"`
-	TokenHash   string             `json:"token_hash"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	DaemonID    string             `json:"daemon_id"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-}
-
 type Feedback struct {
 	ID          pgtype.UUID        `json:"id"`
 	UserID      pgtype.UUID        `json:"user_id"`
@@ -503,18 +494,6 @@ type NotificationPreference struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
-type PersonalAccessToken struct {
-	ID          pgtype.UUID        `json:"id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	Name        string             `json:"name"`
-	TokenHash   string             `json:"token_hash"`
-	TokenPrefix string             `json:"token_prefix"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
-	Revoked     bool               `json:"revoked"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-}
-
 type PinnedItem struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
@@ -523,6 +502,20 @@ type PinnedItem struct {
 	ItemID      pgtype.UUID        `json:"item_id"`
 	Position    float64            `json:"position"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type PocRunCallback struct {
+	TaskID             pgtype.UUID        `json:"task_id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	Url                string             `json:"url"`
+	Secret             string             `json:"secret"`
+	Status             string             `json:"status"`
+	AttemptCount       int32              `json:"attempt_count"`
+	LastResponseStatus pgtype.Int4        `json:"last_response_status"`
+	LastError          pgtype.Text        `json:"last_error"`
+	DeliveredAt        pgtype.Timestamptz `json:"delivered_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Project struct {
@@ -695,31 +688,18 @@ type TaskUsageHourlyRollupState struct {
 }
 
 type User struct {
-	ID                      pgtype.UUID        `json:"id"`
-	Name                    string             `json:"name"`
-	Email                   string             `json:"email"`
-	AvatarUrl               pgtype.Text        `json:"avatar_url"`
-	CreatedAt               pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
-	OnboardedAt             pgtype.Timestamptz `json:"onboarded_at"`
-	OnboardingQuestionnaire []byte             `json:"onboarding_questionnaire"`
-	CloudWaitlistEmail      pgtype.Text        `json:"cloud_waitlist_email"`
-	CloudWaitlistReason     pgtype.Text        `json:"cloud_waitlist_reason"`
-	StarterContentState     pgtype.Text        `json:"starter_content_state"`
-	Language                pgtype.Text        `json:"language"`
-	ProfileDescription      string             `json:"profile_description"`
+	ID                  pgtype.UUID        `json:"id"`
+	Name                string             `json:"name"`
+	Email               string             `json:"email"`
+	AvatarUrl           pgtype.Text        `json:"avatar_url"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	OnboardedAt         pgtype.Timestamptz `json:"onboarded_at"`
+	StarterContentState pgtype.Text        `json:"starter_content_state"`
+	Language            pgtype.Text        `json:"language"`
+	ProfileDescription  string             `json:"profile_description"`
 	// User-preferred IANA timezone for report rendering (Viewing tz). NULL means "use the browser-detected tz at render time". Affects dashboards, charts, and any "today" label shown to this user. Does not affect data materialisation — all rollups remain in UTC.
 	Timezone pgtype.Text `json:"timezone"`
-}
-
-type VerificationCode struct {
-	ID        pgtype.UUID        `json:"id"`
-	Email     string             `json:"email"`
-	Code      string             `json:"code"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
-	Used      bool               `json:"used"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	Attempts  int32              `json:"attempts"`
 }
 
 type WebhookDelivery struct {

@@ -488,7 +488,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 			wsID,
 			analytics.OnboardingPathInviteAccept,
 			onboardedAt,
-			onboardedUser.CloudWaitlistEmail.Valid,
+			false, // THROWAWAY POC: cloud waitlist removed; joinedCloudWaitlist is always false. NEVER MERGE.
 		))
 	}
 

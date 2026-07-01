@@ -1,20 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { CloudWaitlistExpand } from "@multica/views/onboarding";
 import { useLocale } from "../../i18n";
 
 /**
- * Cloud runtime waitlist — thin wrapper around the shared
- * CloudWaitlistExpand form with a download-page-appropriate title
- * and subtitle. Submission persists via `joinCloudWaitlist` inside
- * the child; the submitted flag here only prevents double-submits
- * for the lifetime of the page.
+ * Cloud runtime section on the download page. The cloud-waitlist form that
+ * lived in the onboarding package was removed with the onboarding flow; this
+ * section now renders the heading + copy only.
+ *
+ * THROWAWAY POC: the cloud waitlist was an onboarding-adjacent feature; it was
+ * deleted alongside the onboarding removal. NEVER MERGE.
  */
 export function CloudSection() {
   const { t } = useLocale();
   const d = t.download.cloud;
-  const [submitted, setSubmitted] = useState(false);
 
   return (
     <section className="bg-white py-20 text-[#0a0d12] sm:py-24">
@@ -25,13 +23,6 @@ export function CloudSection() {
         <p className="mt-4 max-w-[560px] text-[15px] leading-7 text-[#0a0d12]/72">
           {d.sub}
         </p>
-
-        <div className="mt-10">
-          <CloudWaitlistExpand
-            submitted={submitted}
-            onSubmitted={() => setSubmitted(true)}
-          />
-        </div>
       </div>
     </section>
   );

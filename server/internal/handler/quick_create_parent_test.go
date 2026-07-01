@@ -33,22 +33,24 @@ func TestQuickCreateIssueParentTrustBoundary(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	// Resolve the seeded runtime + agent for this workspace, then bump the
-	// runtime metadata to a CLI version that clears MinQuickCreateCLIVersion.
-	// The seed runtime uses metadata '{}'::jsonb which would otherwise trip
-	// the daemon-version gate before we ever reach the parent_issue_id check.
-	var runtimeID, agentID string
-	if err := testPool.QueryRow(ctx,
-		`SELECT id FROM agent_runtime WHERE workspace_id = $1 LIMIT 1`,
-		testWorkspaceID,
-	).Scan(&runtimeID); err != nil {
-		t.Fatalf("fetch runtime: %v", err)
-	}
-	if err := testPool.QueryRow(ctx,
-		`SELECT id FROM agent WHERE workspace_id = $1 LIMIT 1`,
-		testWorkspaceID,
-	).Scan(&agentID); err != nil {
-		t.Fatalf("fetch agent: %v", err)
+	// Resolve the agent we will dispatch and the runtime it actually points
+	// at, then bump THAT runtime's metadata to a CLI version that clears
+	// MinQuickCreateCLIVersion. The seed runtime uses metadata '{}'::jsonb
+	// which would otherwise trip the daemon-version gate before we ever reach
+	// the parent_issue_id check. We join through the agent's runtime_id rather
+	// than a bare `agent_runtime LIMIT 1` because the shared handler-test
+	// fixture workspace accumulates extra runtime rows from sibling tests —
+	// an arbitrary LIMIT 1 may pick a runtime the dispatched agent doesn't
+	// use, leaving the version gate to fire (422) instead of the UUID checks.
+	var agentID, runtimeID string
+	if err := testPool.QueryRow(ctx, `
+		SELECT a.id, a.runtime_id
+		FROM agent a
+		JOIN agent_runtime r ON r.id = a.runtime_id
+		WHERE a.workspace_id = $1 AND r.status = 'online'
+		LIMIT 1
+	`, testWorkspaceID).Scan(&agentID, &runtimeID); err != nil {
+		t.Fatalf("fetch online agent + runtime: %v", err)
 	}
 	if _, err := testPool.Exec(ctx,
 		`UPDATE agent_runtime SET metadata = jsonb_build_object('cli_version', $1::text) WHERE id = $2`,

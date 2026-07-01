@@ -51,6 +51,40 @@ func TestBuildQuickCreatePromptRules(t *testing.T) {
 	}
 }
 
+// TestBuildDirectRunPromptRules locks in the contract that separates a direct
+// run from a quick-create: the agent executes the instruction and returns its
+// output as plain text, and must NOT mutate any issue.
+func TestBuildDirectRunPromptRules(t *testing.T) {
+	out := buildDirectRunPrompt(Task{DirectRunPrompt: "summarize the auth module"})
+
+	mustContain := []string{
+		"direct-run agent",
+		"Instruction:",
+		"> summarize the auth module",
+		"final textual output IS the deliverable",
+		"Do NOT create, comment on, or otherwise modify any Multica issue",
+		"Do not run `multica issue create`",
+	}
+	for _, s := range mustContain {
+		if !strings.Contains(out, s) {
+			t.Errorf("buildDirectRunPrompt output missing required rule: %q\n--- output ---\n%s", s, out)
+		}
+	}
+}
+
+// TestBuildPromptDispatchDirectRun verifies BuildPrompt routes a direct-run
+// task to buildDirectRunPrompt (and not the quick-create branch) when only
+// DirectRunPrompt is set.
+func TestBuildPromptDispatchDirectRun(t *testing.T) {
+	out := BuildPrompt(Task{DirectRunPrompt: "do the thing"}, "codex")
+	if !strings.Contains(out, "direct-run agent") {
+		t.Fatalf("BuildPrompt did not dispatch a direct-run task to buildDirectRunPrompt:\n%s", out)
+	}
+	if strings.Contains(out, "quick-create assistant") {
+		t.Fatalf("BuildPrompt dispatched a direct-run task to the quick-create branch:\n%s", out)
+	}
+}
+
 // TestBuildQuickCreatePromptAssigneeIncludesSquads locks in the MUL-2165
 // fix: the assignee-resolution rules must tell the agent to consult the
 // squad list alongside members and agents. Before this, a quick-create

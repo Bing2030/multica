@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS poc_run_callback;

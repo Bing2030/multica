@@ -11,16 +11,14 @@ import {
 import {
   paths,
   resolvePostAuthDestination,
-  useHasOnboarded,
 } from "@multica/core/paths";
 import { useNavigation } from "../navigation";
-import { useLogout } from "../auth";
 import { DragStrip } from "../platform";
 import { useT } from "../i18n";
 import { Button } from "@multica/ui/components/ui/button";
 import { Card, CardContent } from "@multica/ui/components/ui/card";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { ArrowLeft, LogOut, Users, Check, X } from "lucide-react";
+import { ArrowLeft, Users, Check, X } from "lucide-react";
 
 export interface InvitePageProps {
   invitationId: string;
@@ -57,22 +55,15 @@ export function InvitePage({ invitationId, onBack }: InvitePageProps) {
   // Workspace list for the fallback "Go to dashboard" destinations. The invite
   // page is a pre-workspace global route so we can't rely on WorkspaceSlugProvider.
   const { data: wsList = [] } = useQuery(workspaceListOptions());
-  const hasOnboarded = useHasOnboarded();
-  const fallbackDest = resolvePostAuthDestination(wsList, hasOnboarded);
+  const fallbackDest = resolvePostAuthDestination(wsList);
 
   const handleAccept = async () => {
     setAccepting(true);
     setError(null);
     try {
       await api.acceptInvitation(invitationId);
-      // Belt to the backend's braces: AcceptInvitation already sets
-      // onboarded_at inside the same transaction, but explicitly calling
-      // markOnboardingComplete + refreshMe here keeps local user state in
-      // sync immediately so downstream guards don't see stale `null`.
-      await api.markOnboardingComplete({
-        completion_path: "invite_accept",
-        workspace_id: invitation?.workspace_id,
-      });
+      // Refresh the user so any membership-derived state is current, then
+      // refetch the workspace list so we know the joined workspace's slug.
       await useAuthStore.getState().refreshMe();
       setDone("accepted");
       // Fetch the refreshed workspace list so we know the joined workspace's slug.
@@ -247,8 +238,11 @@ export function InvitePage({ invitationId, onBack }: InvitePageProps) {
 
 /**
  * Shared chrome for every InvitePage render state (loading, error,
- * default, accepted, declined). Keeps Back + Log out buttons in a
- * consistent position across all branches and across platforms.
+ * default, accepted, declined). Keeps the Back button in a consistent
+ * position across all branches and across platforms.
+ *
+ * THROWAWAY POC: under DevBypass there is no "log out" affordance — the next
+ * request re-stamps the same dev user, so the button was a no-op. NEVER MERGE.
  */
 function InviteShell({
   onBack,
@@ -258,7 +252,6 @@ function InviteShell({
   children: ReactNode;
 }) {
   const { t } = useT("invite");
-  const logout = useLogout();
   return (
     <div className="relative flex min-h-svh flex-col bg-background">
       <DragStrip />
@@ -273,15 +266,6 @@ function InviteShell({
           {t(($) => $.header.back)}
         </Button>
       )}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute top-16 right-12 text-muted-foreground hover:text-destructive"
-        onClick={logout}
-      >
-        <LogOut />
-        {t(($) => $.header.log_out)}
-      </Button>
       <div className="flex flex-1 flex-col items-center justify-center px-6 pb-12">
         {children}
       </div>

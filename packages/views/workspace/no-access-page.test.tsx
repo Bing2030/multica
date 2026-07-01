@@ -11,27 +11,11 @@ const TEST_RESOURCES = {
 };
 
 const navigate = vi.fn();
-const logout = vi.fn();
 const mockWorkspaces = vi.hoisted(() => [{ slug: "valid-team" }]);
 
 vi.mock("../navigation", () => ({
   useNavigation: () => ({ push: navigate, replace: navigate }),
 }));
-
-vi.mock("../auth", () => ({
-  useLogout: () => logout,
-}));
-
-vi.mock("@multica/core/paths", async () => {
-  const actual =
-    await vi.importActual<typeof import("@multica/core/paths")>(
-      "@multica/core/paths",
-    );
-  return {
-    ...actual,
-    useHasOnboarded: () => true,
-  };
-});
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: mockWorkspaces }),
@@ -56,7 +40,6 @@ function renderPage() {
 describe("NoAccessPage", () => {
   beforeEach(() => {
     navigate.mockReset();
-    logout.mockReset();
   });
 
   it("renders generic message that doesn't leak existence", () => {
@@ -80,16 +63,5 @@ describe("NoAccessPage", () => {
     // `last_workspace_slug=other` would still trap users.
     const value = document.cookie.match(/last_workspace_slug=([^;]*)/)?.[1];
     expect(value ?? "").toBe("");
-  });
-
-  it("fully logs out on 'Sign in as a different user' instead of just navigating", () => {
-    renderPage();
-    fireEvent.click(
-      screen.getByRole("button", { name: /sign in as a different user/i }),
-    );
-    expect(logout).toHaveBeenCalledTimes(1);
-    // Should NOT just navigate to /login — that would leave the session
-    // cookie + auth state intact and AuthInitializer would re-auth.
-    expect(navigate).not.toHaveBeenCalledWith("/login");
   });
 });

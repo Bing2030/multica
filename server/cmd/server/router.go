@@ -344,27 +344,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
-	// Auth caches: PAT cache is shared between the regular Auth middleware,
-	// the DaemonAuth fallback (mul_) path, and the revoke handler
-	// (invalidate). DaemonTokenCache backs the DaemonAuth mdt_ path. Both
-	// constructors return nil when rdb is nil — every consumer handles that
-	// as "no cache, always hit DB".
-	patCache := auth.NewPATCache(rdb)
-	daemonTokenCache := auth.NewDaemonTokenCache(rdb)
-	h.PATCache = patCache
-	h.DaemonTokenCache = daemonTokenCache
+	// THROWAWAY POC: the PAT / daemon-token / cloud-PAT caches and verifiers
+	// are removed along with the Auth + DaemonAuth middlewares — DevBypass
+	// stamps the dev user on every request and the daemon runs with no token.
+	// Only MembershipCache (used by RequireWorkspaceMember* and the daemon /
+	// file membership fast-paths) survives. NEVER MERGE.
 	h.MembershipCache = auth.NewMembershipCache(rdb)
-
-	// Cloud PAT verifier: validates mcn_ tokens against Multica Cloud
-	// Fleet. Returns nil when no Fleet URL is configured — the Auth /
-	// DaemonAuth middlewares treat nil as "mcn_ not supported" and
-	// reject with 401, instead of falling through to mul_/JWT paths.
-	// Reuses MULTICA_CLOUD_FLEET_URL (the same URL the cloud-runtime
-	// proxy uses) so a deployment doesn't need a second config knob.
-	cloudPATVerifier := auth.NewCloudPATVerifier(auth.CloudPATVerifierConfig{
-		FleetBaseURL: signupConfig.CloudRuntimeFleetURL,
-		Redis:        rdb,
-	})
 
 	// Empty-claim cache: lets the daemon poll path skip a Postgres
 	// scan when a recent check confirmed the runtime had no queued
@@ -424,7 +409,6 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 	// WebSocket
 	mc := &membershipChecker{queries: queries}
-	pr := &patResolver{queries: queries, cache: patCache}
 	slugResolver := realtime.SlugResolver(func(ctx context.Context, slug string) (string, error) {
 		ws, err := queries.GetWorkspaceBySlug(ctx, slug)
 		if err != nil {
@@ -432,8 +416,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		}
 		return util.UUIDToString(ws.ID), nil
 	})
-	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
-		realtime.HandleWebSocket(hub, mc, pr, slugResolver, w, r)
+	// THROWAWAY POC: /ws goes through DevBypass so the upgrade carries the dev
+	// user's X-User-ID. HandleWebSocket reads that header as the connection
+	// identity, letting web+desktop connect with no login token. NEVER MERGE.
+	r.With(middleware.DevBypass(queries)).Get("/ws", func(w http.ResponseWriter, r *http.Request) {
+		realtime.HandleWebSocket(hub, mc, slugResolver, w, r)
 	})
 
 	// Serve uploaded files from the local filesystem. NewLocalStorageFromEnv
@@ -446,18 +433,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		})
 	}
 
-	// Auth (public) — per-IP rate limiting.
+	// THROWAWAY POC: auth-login routes (send-code / verify-code / google /
+	// logout) are removed — DevBypass is the sole identity path. The per-IP
+	// auth rate limiters are gone with them; contact-sales keeps its own
+	// limiter below. NEVER MERGE.
 	if rdb == nil {
 		slog.Warn("rate limiting disabled: REDIS_URL not configured")
 	}
 	trustedProxies := middleware.ParseTrustedProxies(os.Getenv("RATE_LIMIT_TRUSTED_PROXIES"))
-	authRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH", 5), time.Minute, trustedProxies)
-	authVerifyRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH_VERIFY", 20), time.Minute, trustedProxies)
 	contactSalesRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_CONTACT_SALES", 5), time.Hour, trustedProxies)
-	r.With(authRL).Post("/auth/send-code", h.SendCode)
-	r.With(authVerifyRL).Post("/auth/verify-code", h.VerifyCode)
-	r.With(authRL).Post("/auth/google", h.GoogleLogin)
-	r.Post("/auth/logout", h.Logout)
 
 	// Public API
 	r.Get("/api/config", h.GetConfig)
@@ -477,9 +461,25 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// HandleCloudBillingStripeWebhook for the rationale).
 	r.Post("/api/webhooks/stripe", h.HandleCloudBillingStripeWebhook)
 
-	// Daemon API routes (require daemon token or valid user token)
+	// POC "agent runs as a service" API — DELIBERATELY UNAUTHENTICATED.
+	// Mounted only when MULTICA_ENABLE_POC_RUNS_API=1 (off by default; never
+	// enable in production or staging). Workspace scoping is the only
+	// boundary — there is no membership or token check. See
+	// server/internal/handler/poc_runs.go and
+	// docs/agent-runs-as-a-service-rfc.md.
+	if os.Getenv("MULTICA_ENABLE_POC_RUNS_API") == "1" {
+		slog.Warn("POC runs API enabled: unauthenticated trigger/poll endpoints are live (MULTICA_ENABLE_POC_RUNS_API=1) — do not use in production")
+		r.Post("/api/poc/runs", h.PocTriggerRun)
+		r.Get("/api/poc/runs/{runId}", h.PocGetRun)
+		r.Get("/api/poc/runs/{runId}/messages", h.PocListRunMessages)
+	}
+
+	// Daemon API routes.
+	// THROWAWAY POC: middleware.DaemonAuth is replaced by DevBypass — no token
+	// required. The dev user stamped by DevBypass satisfies the daemon routes'
+	// X-User-ID membership fallback. NEVER MERGE. See middleware/dev_bypass.go.
 	r.Route("/api/daemon", func(r chi.Router) {
-		r.Use(middleware.DaemonAuth(queries, patCache, daemonTokenCache, cloudPATVerifier))
+		r.Use(middleware.DevBypass(queries))
 
 		r.Post("/register", h.DaemonRegister)
 		r.Post("/deregister", h.DaemonDeregister)
@@ -513,25 +513,19 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/tasks/{taskId}/session", h.PinTaskSession)
 	})
 
-	// Protected API routes
+	// Protected API routes.
+	// THROWAWAY POC: middleware.Auth is replaced by DevBypass — no token
+	// required, every request runs as the canonical dev user. NEVER MERGE.
+	// See middleware/dev_bypass.go.
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth(queries, patCache, cloudPATVerifier))
+		r.Use(middleware.DevBypass(queries))
 
 		// --- User-scoped routes (no workspace context required) ---
+		// THROWAWAY POC: onboarding + cli-token routes are removed; DevBypass
+		// auto-onboards the dev user and the desktop daemon runs with no token.
+		// GetMe / UpdateMe / UploadFile / feedback remain. NEVER MERGE.
 		r.Get("/api/me", h.GetMe)
 		r.Patch("/api/me", h.UpdateMe)
-		r.Patch("/api/me/onboarding", h.PatchOnboarding)
-		r.Post("/api/me/onboarding/complete", h.CompleteOnboarding)
-		r.Post("/api/me/onboarding/cloud-waitlist", h.JoinCloudWaitlist)
-		// DEPRECATED — shim routes for desktop < v3 during the rollout
-		// window. v3 frontend creates the Helper agent + starter issue
-		// via generic CreateAgent / CreateIssue and only calls /complete
-		// here. Remove once X-Client-Version telemetry confirms zero
-		// pre-v3 desktops are still calling these. Handlers live in
-		// server/internal/handler/onboarding_shim.go.
-		r.Post("/api/me/onboarding/runtime-bootstrap", h.BootstrapOnboardingRuntime)
-		r.Post("/api/me/onboarding/no-runtime-bootstrap", h.BootstrapOnboardingNoRuntime)
-		r.Post("/api/cli-token", h.IssueCliToken)
 		r.Post("/api/upload-file", h.UploadFile)
 		r.Post("/api/feedback", h.CreateFeedback)
 
@@ -626,12 +620,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/api/invitations/{id}/accept", h.AcceptInvitation)
 		r.Post("/api/invitations/{id}/decline", h.DeclineInvitation)
 
-		r.Route("/api/tokens", func(r chi.Router) {
-			r.Get("/", h.ListPersonalAccessTokens)
-			r.Post("/", h.CreatePersonalAccessToken)
-			r.Post("/current/renew", h.RenewCurrentPersonalAccessToken)
-			r.Delete("/{id}", h.RevokePersonalAccessToken)
-		})
+		// THROWAWAY POC: /api/tokens (personal access tokens) removed —
+		// DevBypass is the sole identity path and the desktop daemon runs
+		// with no token. NEVER MERGE.
 
 		// Cloud Billing proxy. Same upstream service / port as
 		// cloud-runtime — multica-cloud's Fleet and Billing share
@@ -1044,42 +1035,6 @@ func (mc *membershipChecker) IsMember(ctx context.Context, userID, workspaceID s
 		WorkspaceID: parseUUID(workspaceID),
 	})
 	return err == nil
-}
-
-// patResolver implements realtime.PATResolver using database queries.
-// patCache is shared with the Auth and DaemonAuth middlewares so a token
-// revoke through any path invalidates the cache for all of them. Nil
-// cache is supported and degrades to direct DB lookups.
-type patResolver struct {
-	queries *db.Queries
-	cache   *auth.PATCache
-}
-
-func (pr *patResolver) ResolveToken(ctx context.Context, token string) (string, bool) {
-	hash := auth.HashToken(token)
-
-	if userID, ok := pr.cache.Get(ctx, hash); ok {
-		return userID, true
-	}
-
-	pat, err := pr.queries.GetPersonalAccessTokenByHash(ctx, hash)
-	if err != nil {
-		return "", false
-	}
-
-	userID := util.UUIDToString(pat.UserID)
-
-	var expiresAt time.Time
-	if pat.ExpiresAt.Valid {
-		expiresAt = pat.ExpiresAt.Time
-	}
-	pr.cache.Set(ctx, hash, userID, auth.TTLForExpiry(time.Now(), expiresAt))
-
-	// Cache miss = first WS auth in this TTL window. Refresh last_used_at;
-	// subsequent connects within the window skip the write.
-	go pr.queries.UpdatePersonalAccessTokenLastUsed(context.Background(), pat.ID)
-
-	return userID, true
 }
 
 // parseUUID is a thin alias for util.MustParseUUID. Call sites here are all

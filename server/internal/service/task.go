@@ -582,6 +582,70 @@ type QuickCreateContext struct {
 // QuickCreateContextType marks a task as a quick-create job.
 const QuickCreateContextType = "quick_create"
 
+// DirectRunContextType marks a task as a "direct run" — an ad-hoc execution
+// whose final text output the caller fetches via the runs API. Unlike a
+// quick-create, the agent does NOT run `multica issue create`; its terminal
+// output is captured into agent_task_queue.result (the existing completion
+// path already marshals the daemon's reported output there) and the caller
+// polls/streams for it. See docs/agent-runs-as-a-service-rfc.md (channel A).
+const DirectRunContextType = "direct_run"
+
+// DirectRunContext is the context JSONB payload for a direct run. Minimal by
+// design: just the prompt and the workspace, since a direct run has no
+// requester / squad / project / parent — those are issue-flow concerns.
+type DirectRunContext struct {
+	Type        string `json:"type"`
+	Prompt      string `json:"prompt"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// EnqueueDirectRun creates a queued, issue-less task that asks the agent to
+// execute `prompt` and return its output directly (no issue created). Mirrors
+// the quick-create enqueue shape — same CreateQuickCreateTask row (the
+// context.type discriminator is what makes the daemon treat it differently) —
+// but carries none of the issue-flow optional fields.
+func (s *TaskService) EnqueueDirectRun(ctx context.Context, workspaceID, agentID pgtype.UUID, prompt string) (db.AgentTaskQueue, error) {
+	agent, err := s.Queries.GetAgent(ctx, agentID)
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("load agent: %w", err)
+	}
+	if agent.ArchivedAt.Valid {
+		return db.AgentTaskQueue{}, fmt.Errorf("agent is archived")
+	}
+	if !agent.RuntimeID.Valid {
+		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
+	}
+
+	contextJSON, err := json.Marshal(DirectRunContext{
+		Type:        DirectRunContextType,
+		Prompt:      prompt,
+		WorkspaceID: util.UUIDToString(workspaceID),
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("marshal direct-run context: %w", err)
+	}
+
+	task, err := s.Queries.CreateQuickCreateTask(ctx, db.CreateQuickCreateTaskParams{
+		AgentID:   agentID,
+		RuntimeID: agent.RuntimeID,
+		Priority:  priorityToInt("high"),
+		Context:   contextJSON,
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("create direct-run task: %w", err)
+	}
+
+	slog.Info("direct-run task enqueued",
+		"task_id", util.UUIDToString(task.ID),
+		"agent_id", util.UUIDToString(agentID),
+		"workspace_id", util.UUIDToString(workspaceID),
+	)
+	// Match every other Enqueue* path: wake the daemon WS so the task is
+	// claimed promptly instead of waiting for the next poll cycle.
+	s.NotifyTaskEnqueued(ctx, task)
+	return task, nil
+}
+
 // EnqueueQuickCreateTask creates a queued task that has no issue / chat /
 // autopilot link — the user's natural-language prompt is stored in the
 // task's context JSONB and the agent is expected to translate it into a
