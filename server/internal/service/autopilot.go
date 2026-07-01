@@ -1088,8 +1088,7 @@ func (s *AutopilotService) interpolateTemplate(ap db.Autopilot, run db.Autopilot
 
 // SupportedIssueTitleTemplateVariables enumerates the placeholders that
 // interpolateTemplate will substitute. Keep this in sync with the
-// substitution logic above and with the docs in autopilots.mdx /
-// autopilots.zh.mdx.
+// substitution logic above and with the docs in autopilots.mdx.
 var SupportedIssueTitleTemplateVariables = []string{"date"}
 
 // ValidateIssueTitleTemplate rejects templates that contain any {{...}} token

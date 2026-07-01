@@ -1,19 +1,17 @@
 import { i18n } from "./i18n";
 
 // Add the active locale prefix to root-relative MDX links so internal
-// navigation inside Chinese (or any non-default-language) docs stays in
-// that language. Without this, `[xx](/workspaces)` written in a `*.zh.mdx`
-// renders as `<a href="/workspaces">`, which Next's basePath rewrites to
-// `/docs/workspaces` and the docs middleware then routes to English —
-// leaking the reader out of their chosen locale.
+// navigation stays in the right locale. English is the default and its
+// URLs are prefix-less under `hideLocale: 'default-locale'`, so this is a
+// pass-through in the current English-only setup but is kept for when a
+// non-default locale is added back.
 //
 // We deliberately do NOT touch:
 //   - external links (`https:`, `mailto:`, `tel:`, etc.)
 //   - in-page anchors (`#section`)
 //   - relative paths (`./foo`, `../bar`)
 //   - paths already prefixed with a known locale
-//   - the default language (URLs are intentionally prefix-less under
-//     `hideLocale: 'default-locale'`)
+//   - the default language (URLs are intentionally prefix-less)
 export function prefixLocale(href: string, lang: string): string {
   if (!href) return href;
   if (lang === i18n.defaultLanguage) return href;
