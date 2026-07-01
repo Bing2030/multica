@@ -37,10 +37,10 @@ const LOG_TAIL_MAX_RETRIES = 5;
 // healthy-but-slow start is misreported as a failure (the detached daemon child
 // keeps running, so the UI flashes "stopped" then "running").
 const DAEMON_START_EXEC_TIMEOUT_MS = 60_000;
-// THROWAWAY POC: the daemon CLI's resolveAuth() refuses to start when
-// config.json has no token ("not authenticated — run multica login"). Under
-// DevBypass the server ignores the credential entirely (X-User-ID is the sole
-// identity), so we seed a fixed dummy token to satisfy the CLI's non-empty
+// THROWAWAY POC: the daemon's resolveAuth() refuses to start when
+// config.json has no token ("not authenticated"). Under DevBypass the
+// server ignores the credential entirely (X-User-ID is the sole
+// identity), so we seed a fixed dummy token to satisfy the non-empty
 // check. NEVER MERGE.
 const DEV_BYPASS_DUMMY_TOKEN = "mul_dev_bypass_dummy_token";
 
@@ -195,7 +195,7 @@ async function writeProfileConfig(
  *
  * This function never falls back to the default profile, and never touches a
  * profile whose name doesn't start with `desktop-`, so the user's manually
- * configured CLI profiles are untouched.
+ * configured profiles are untouched.
  */
 async function resolveActiveProfile(): Promise<ActiveProfile> {
   const target = targetApiBaseUrl;
@@ -508,7 +508,7 @@ async function ensureRunningDaemonVersionMatches(): Promise<
 }
 
 // THROWAWAY POC: ensure the active profile's config.json has a (dummy) token
-// so the daemon CLI's resolveAuth() — which refuses to start on an empty
+// so the daemon's resolveAuth() — which refuses to start on an empty
 // token — is satisfied. Under DevBypass the server ignores the credential
 // entirely (X-User-ID is the sole identity), so the literal value is
 // irrelevant as long as it's non-empty. Called from startDaemon. Best-effort:
@@ -586,7 +586,7 @@ async function startDaemon(): Promise<{ success: boolean; error?: string }> {
     return { success: true };
   }
 
-  // THROWAWAY POC: seed the dummy token before spawning so the daemon CLI's
+  // THROWAWAY POC: seed the dummy token before spawning so the daemon's
   // resolveAuth() (which rejects an empty token) is satisfied. The server
   // ignores the credential under DevBypass. See ensureProfileToken. NEVER MERGE.
   await ensureProfileToken();

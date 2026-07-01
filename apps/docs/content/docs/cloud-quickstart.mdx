@@ -5,7 +5,7 @@ description: From sign-up to assigning your first task to an agent in 5 minutes.
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-This page walks you end-to-end through Multica Cloud — **sign up → install the [CLI](/cli) → start the [daemon](/daemon-runtimes) → create an [agent](/agents) → assign your first [task](/tasks)**. Takes about 5 minutes.
+This page walks you end-to-end through Multica Cloud — **sign up → install the [daemon](/daemon-runtimes) → create an [agent](/agents) → assign your first [task](/tasks)**. Takes about 5 minutes.
 
 One prerequisite: you already have at least one [AI coding tool](/providers) installed locally ([Claude Code](/providers#claude-code), [Codex](/providers#codex), [Cursor](/providers#cursor), [Copilot](/providers#copilot), [OpenCode](/providers#opencode), or [Pi](/providers#pi)). The daemon auto-detects them on startup and refuses to start if none are present.
 
@@ -15,24 +15,14 @@ Sign up at [multica.ai](https://multica.ai). You can log in with email (6-digit 
 
 After sign-up you're automatically placed in a default workspace (generated from your account name). You can rename it later, or create new workspaces.
 
-## 2. Install the Multica CLI
+## 2. Install the daemon
 
-**macOS / Linux (Homebrew recommended)**:
+**Desktop app (recommended)** — download it from the [Multica downloads page](https://multica.ai/download). It ships with the `multica` binary embedded and **starts the daemon automatically on launch**, so you can skip straight to [Step 4](#4-verify-the-runtime-is-online). See [Desktop app](/desktop-app) for details.
+
+**Homebrew (macOS / Linux)** — if you'd rather run the daemon yourself from a terminal:
 
 ```bash
 brew install multica-ai/tap/multica
-```
-
-**macOS / Linux (no Homebrew)**:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash
-```
-
-**Windows (PowerShell)**:
-
-```powershell
-irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
 ```
 
 Verify the install:
@@ -41,23 +31,31 @@ Verify the install:
 multica version
 ```
 
-## 3. Log in + start the daemon
+## 3. Create the config file + start the daemon
 
-A single command handles login and starts the daemon:
+The daemon reads `~/.multica/config.json` at start. Create it by hand with the Cloud server URL, app URL, and a personal access token (PAT):
 
-```bash
-multica setup
+1. In the web app, go to **Settings → Personal Access Tokens → New token**, create a PAT (prefixed `mul_`), and copy it — it's shown only once.
+2. Create `~/.multica/config.json`:
+
+```json
+{
+  "server_url": "wss://app.multica.ai/ws",
+  "app_url": "https://app.multica.ai",
+  "token": "mul_..."
+}
 ```
 
-`multica setup` will:
+3. Start the daemon:
 
-1. Configure the CLI to connect to Multica Cloud
-2. Open your browser for login (same email verification code / Google OAuth as the web)
-3. Store the generated PAT in `~/.multica/config.json`
-4. **Start the daemon automatically** — it begins polling for tasks every 3 seconds and sending heartbeats every 15 seconds
+```bash
+multica daemon start
+```
+
+It begins polling for tasks every 3 seconds and sending heartbeats every 15 seconds.
 
 <Callout type="info">
-**Using the desktop app?** The desktop app **starts the daemon automatically** on launch — no need to run `multica setup` by hand. See [Desktop app](/desktop-app).
+**Using the desktop app?** The desktop app **starts the daemon automatically** on launch and writes its own config — no need to create `~/.multica/config.json` by hand. See [Desktop app](/desktop-app).
 </Callout>
 
 Verify the daemon is running:
@@ -87,19 +85,9 @@ Once created, the agent shows up in your workspace member list and can be assign
 
 ## 6. Assign your first task
 
-Create an issue in the web UI, or from the CLI:
+Create an issue in the web UI — click **+ New issue** on the board and give it a title, for example "Add an ASCII architecture diagram to the README".
 
-```bash
-multica issue create --title "Add an ASCII architecture diagram to the README"
-```
-
-Assign the issue to the agent you just created — click its avatar in the web UI, or use the CLI:
-
-```bash
-multica issue assign MUL-1 --to my-agent-name
-```
-
-`--to` takes the **name** of an agent or member. A substring match works — if the agent is called `my-code-reviewer`, `reviewer` resolves to it. If your workspace has overlapping names, pass `--to-id <uuid>` instead (mutually exclusive with `--to`); look up the UUID via `multica agent list --output json` or `multica workspace member list --output json`.
+Assign the issue to the agent you just created by clicking the **Assignee** picker on the issue and selecting the agent. The picker only lists agents that have an online runtime.
 
 **What happens next from the daemon**:
 

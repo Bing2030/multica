@@ -64,52 +64,46 @@ Multica manages the full agent lifecycle: from task assignment to execution moni
 
 ## Quick Install
 
-### macOS / Linux (Homebrew - recommended)
+### Desktop app (recommended)
+
+Download the Multica desktop app for macOS, Windows, or Linux from [multica.ai/download](https://multica.ai/download). The app bundles the daemon and handles configuration for you.
+
+### Daemon only (servers / headless boxes)
+
+If you just need the daemon on a remote machine:
 
 ```bash
 brew install multica-ai/tap/multica
 ```
 
-Use `brew upgrade multica-ai/tap/multica` to keep the CLI current.
+Then create a config file at `~/.multica/config.json` with a personal access token (create one in **Settings → Tokens** in the web app):
 
-### macOS / Linux (install script)
+```json
+{
+  "server_url": "https://api.multica.ai",
+  "app_url": "https://multica.ai",
+  "token": "mul_..."
+}
+```
+
+Start the daemon:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash
+multica daemon start
 ```
 
-Use this if Homebrew is not available. The script installs the Multica CLI on macOS and Linux by using Homebrew when it is on `PATH`, otherwise it downloads the binary directly.
-
-### Windows (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
-```
-
-Then configure, authenticate, and start the daemon in one command:
-
-```bash
-multica setup          # Connect to Multica Cloud, log in, start daemon
-```
-
-> **Self-hosting?** Add `--with-server` to deploy a full Multica server on your machine:
->
-> ```bash
-> curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash -s -- --with-server
-> multica setup self-host
-> ```
->
-> This pulls the official Multica images from GHCR (latest stable by default). Requires Docker. See the [Self-Hosting Guide](SELF_HOSTING.md) for details.
-> If the selected GHCR tag has not been published yet, fall back to `make selfhost-build` from a checkout.
+> **Self-hosting?** See the [Self-Hosting Guide](SELF_HOSTING.md) for running the Multica server on your own infrastructure.
 
 ---
 
 ## Getting Started
 
-### 1. Set up and start the daemon
+### 1. Start the daemon
+
+If using the desktop app, it starts the daemon automatically on launch. Otherwise, run:
 
 ```bash
-multica setup           # Configure, authenticate, and start the daemon
+multica daemon start
 ```
 
 The daemon runs in the background and auto-detects agent CLIs (`claude`, `codex`, `copilot`, `opencode`, `pi`, `cursor-agent`) on your PATH.
@@ -126,28 +120,22 @@ Go to **Settings → Agents** and click **New Agent**. Pick the runtime you just
 
 ### 4. Assign your first task
 
-Create an issue from the board (or via `multica issue create`), then assign it to your new agent. The agent will automatically pick up the task, execute it on your runtime, and report progress — just like a human teammate.
+Create an issue from the board, then assign it to your new agent. The agent will automatically pick up the task, execute it on your runtime, and report progress — just like a human teammate.
 
 ---
 
-## CLI
+## Daemon Commands
 
-The `multica` CLI connects your local machine to Multica — authenticate, manage workspaces, and run the agent daemon.
+The `multica` binary runs the local agent daemon.
 
 | Command | Description |
 |---------|-------------|
-| `multica login` | Authenticate (opens browser) |
 | `multica daemon start` | Start the local agent runtime |
 | `multica daemon status` | Check daemon status |
-| `multica setup` | One-command setup for Multica Cloud (configure + login + start daemon) |
-| `multica setup self-host` | Same, but for self-hosted deployments |
-| `multica workspace list` | List your workspaces (current is marked with `*`) |
-| `multica workspace switch <id\|slug>` | Switch the default workspace for this profile |
-| `multica issue list` | List issues in your workspace |
-| `multica issue create` | Create a new issue |
+| `multica daemon stop` | Stop the running daemon |
+| `multica daemon restart` | Restart the running daemon |
+| `multica daemon logs -f` | Follow daemon logs |
 | `multica update` | Update to the latest version |
-
-See the [CLI and Daemon Guide](CLI_AND_DAEMON.md) for the full command reference.
 
 ---
 

@@ -99,8 +99,8 @@ pnpm test             # TS tests (Vitest, all packages + apps via turbo)
 # Backend (Go)
 make server           # Run Go server only (port 8080)
 make daemon           # Run local daemon
-make build            # Build server + CLI binaries to server/bin/
-make cli ARGS="..."   # Run multica CLI (e.g. make cli ARGS="config")
+make build            # Build server + daemon binaries to server/bin/
+make multica ARGS="daemon start"  # Run multica daemon from source
 make test             # Go tests
 make sqlc             # Regenerate sqlc code after editing SQL in server/pkg/db/queries/
 make migrate-up       # Run database migrations
@@ -162,7 +162,7 @@ make start-worktree     # Start using .env.worktree
 - Avoid broad refactors unless required by the task.
 - New global (pre-workspace) routes MUST use a single word (`/login`, `/inbox`) or a `/{noun}/{verb}` pair (`/workspaces/new`). NEVER add hyphenated word-group root routes (`/new-workspace`, `/create-team`) — they collide with common user workspace names and force endless reserved-slug audits. Reserving the noun (`workspaces`) automatically protects the entire `/workspaces/*` subtree.
 - The reserved-slug list lives in **one** place: `server/internal/handler/reserved_slugs.json`. The Go side embeds the JSON; `packages/core/paths/reserved-slugs.ts` is generated from it by `pnpm generate:reserved-slugs`. Edit the JSON, run the generator, commit both. CI re-runs the generator and fails on any drift, so a stale TS file cannot land.
-- When you change a CLI command or flag, an API request/response field, or product behavior that a built-in skill documents (`server/internal/service/builtin_skills/*`), update that skill's `SKILL.md` **and** its `references/*-source-map.md` in the same PR. The built-in skills are source-traced contracts shipped to agents — if the code moves and the skill doesn't, it silently teaches stale behavior.
+- When you change a daemon command or flag, an API request/response field, or product behavior that a built-in skill documents (`server/internal/service/builtin_skills/*`), update that skill's `SKILL.md` **and** its `references/*-source-map.md` in the same PR. The built-in skills are source-traced contracts shipped to agents — if the code moves and the skill doesn't, it silently teaches stale behavior.
 
 ### API Response Compatibility
 
@@ -393,9 +393,9 @@ make check
 
 **Quick iteration:** If you know only TypeScript or Go is affected, run individual checks first for faster feedback, then finish with a full `make check` before marking work complete.
 
-## CLI Release
+## Daemon Release
 
-**Prerequisite:** A CLI release must accompany every Production deployment.
+**Prerequisite:** A daemon release must accompany every Production deployment.
 
 1. Create a tag on the `main` branch: `git tag v0.x.x`
 2. Push the tag: `git push origin v0.x.x`

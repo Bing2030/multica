@@ -23,8 +23,8 @@ var debugFlag bool
 
 var rootCmd = &cobra.Command{
 	Use:           "multica",
-	Short:         "Multica CLI — local agent runtime and management tool",
-	Long:          "Work seamlessly with Multica from the command line.",
+	Short:         "Multica daemon — local agent runtime",
+	Long:          "Run and control the local Multica agent runtime daemon.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
@@ -42,48 +42,14 @@ func init() {
 	rootCmd.PersistentFlags().String("profile", "", "Configuration profile name (e.g. dev) — isolates config, daemon state, and workspaces")
 	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Print full error details on failure (env: MULTICA_DEBUG)")
 
-	// Core commands
-	issueCmd.GroupID = groupCore
-	projectCmd.GroupID = groupCore
-	labelCmd.GroupID = groupCore
-	agentCmd.GroupID = groupCore
-	autopilotCmd.GroupID = groupCore
-	workspaceCmd.GroupID = groupCore
-	repoCmd.GroupID = groupCore
-	skillCmd.GroupID = groupCore
-	squadCmd.GroupID = groupCore
-
 	// Runtime commands
 	daemonCmd.GroupID = groupRuntime
-	runtimeCmd.GroupID = groupRuntime
 
 	// Additional commands
-	authCmd.GroupID = groupAdditional
-	userCmd.GroupID = groupAdditional
-	loginCmd.GroupID = groupAdditional
-	setupCmd.GroupID = groupAdditional
-	attachmentCmd.GroupID = groupAdditional
-	configCmd.GroupID = groupAdditional
 	updateCmd.GroupID = groupAdditional
 	versionCmd.GroupID = groupAdditional
 
-	rootCmd.AddCommand(issueCmd)
-	rootCmd.AddCommand(projectCmd)
-	rootCmd.AddCommand(labelCmd)
-	rootCmd.AddCommand(agentCmd)
-	rootCmd.AddCommand(autopilotCmd)
-	rootCmd.AddCommand(workspaceCmd)
-	rootCmd.AddCommand(repoCmd)
-	rootCmd.AddCommand(skillCmd)
-	rootCmd.AddCommand(squadCmd)
 	rootCmd.AddCommand(daemonCmd)
-	rootCmd.AddCommand(runtimeCmd)
-	rootCmd.AddCommand(authCmd)
-	rootCmd.AddCommand(userCmd)
-	rootCmd.AddCommand(loginCmd)
-	rootCmd.AddCommand(setupCmd)
-	rootCmd.AddCommand(attachmentCmd)
-	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(versionCmd)
 

@@ -154,15 +154,6 @@ export type LandingDict = {
       intelNote: string;
       unavailable: string;
     };
-    cli: {
-      title: string;
-      sub: string;
-      installLabel: string;
-      startLabel: string;
-      sshNote: string;
-      copyLabel: string;
-      copiedLabel: string;
-    };
     cloud: { title: string; sub: string };
     footer: {
       releaseNotes: string;

@@ -79,21 +79,6 @@ The folder picker lives in the **Desktop app** only — the web app has no way t
 
 On Desktop the button stays visible but is **disabled with a hint** when the daemon on this machine is offline, or when the project already has a `local_directory` bound to this daemon — so you can see *why* it's unavailable. (On the web app the button is hidden outright, since there's no folder picker available there at all.) To bind another machine's directory, install Desktop on that machine and add the resource from there.
 
-From the CLI (works on web-only environments too, as long as you supply the daemon ID yourself):
-
-```bash
-multica project resource add <project-id> \
-  --type local_directory \
-  --local-path /Users/me/code/big-game \
-  --daemon-id <daemon-uuid> \
-  --ref-label "main checkout"        # optional
-
-multica project resource update <project-id> <resource-id> \
-  --local-path /Users/me/code/big-game-new
-```
-
-`--daemon-id` comes from `multica daemon list`. The CLI also accepts the generic `--ref '<json>'` escape hatch if you'd rather pass the payload directly.
-
 ### Path rules
 
 The path you attach must clear both an attach-time and a per-task validation. Both are enforced by the daemon that owns the resource — the server only stores the JSON. A path that breaks any rule fails the task with a typed error and leaves your directory untouched:
@@ -153,31 +138,9 @@ These are tracked as the agent-task-lifecycle follow-up to the local-directory w
 
 ## Attaching repos at project creation
 
-In the **Web** or **Desktop** app, opening *New project* now shows a **Repos** pill alongside Status / Priority / Lead. Selecting workspace-bound repos (or pasting an ad-hoc URL) attaches them as `github_repo` resources the moment the project is created.
+In the **Web** or **Desktop** app, opening *New project* now shows a **Repos** pill alongside Status / Priority / Lead. Selecting workspace-bound repos (or pasting an ad-hoc URL) attaches them as `github_repo` resources the moment the project is created. The server attaches resources in the same transaction as the project create — invalid resources roll back the whole operation, so you never end up with a project that has half its resources.
 
-From the **CLI**:
-
-```bash
-# Create + attach in one shot. The server attaches resources in the same
-# transaction as the project create — invalid resources roll back the whole
-# operation, so you never end up with a project that has half its resources.
-multica project create \
-  --title "Agent UX 2026" \
-  --repo https://github.com/multica-ai/multica
-
-# Manage resources later
-multica project resource list <project-id>
-multica project resource add  <project-id> --type github_repo --url <url>
-multica project resource remove <project-id> <resource-id>
-
-# Generic escape hatch for any resource_type the server understands —
-# no CLI change needed when a new type ships:
-multica project resource add <project-id> \
-  --type notion_page \
-  --ref '{"page_id":"…","title":"…"}'
-```
-
-`--repo` may be repeated; each value is attached as a separate `github_repo` resource.
+`--repo` may be repeated (in the API); each value is attached as a separate `github_repo` resource. Manage resources later from the project's **Resources** panel — add, list, or remove rows there. The API also accepts a generic `--ref '<json>'` escape hatch for any resource type the server understands, so day-one support for a new type needs no client change.
 
 ## What the agent sees at runtime
 
@@ -220,7 +183,8 @@ Project resources (also written to `.multica/project/resources.json`):
 - **GitHub repo**: https://github.com/multica-ai/multica (default branch: `main`)
 
 Resources are pointers — open them only when relevant to the task. For
-`github_repo` resources, use `multica repo checkout <url>` to fetch the code.
+`github_repo` resources, the daemon has already cloned the repo into your
+working directory — open it directly.
 ```
 
 The text is intentionally minimal. The full payload is on disk; the prompt only orients the agent so it knows the project exists and what's attached.
@@ -238,7 +202,7 @@ The whole point of the abstraction is that new types are cheap. The full path:
 3. **TypeScript types** (`packages/core/types/project.ts`) — extend `ProjectResourceType` and add the payload interface.
 4. **UI renderer** (`packages/views/projects/components/project-resources-section.tsx`) — add a case in `ResourceRow` for the new type.
 
-There is **no schema migration**, no new sqlc query, no new endpoint, **and no CLI change** — the CLI's generic `--ref '<json>'` flag accepts any payload the validator understands, so day-one support for a new type is purely the four steps above. (You may *optionally* add a per-type CLI shortcut later; not required.)
+There is **no schema migration**, no new sqlc query, no new endpoint, **and no UI change** — the API's generic `--ref '<json>'` payload accepts any payload the validator understands, so day-one support for a new type is purely the four steps above. (You may *optionally* add a per-type UI shortcut later; not required.)
 
 The same `project_resource` table and the same three CRUD calls handle every type.
 
@@ -251,12 +215,12 @@ The repo list shown to the agent (`## Repositories` block in `CLAUDE.md` / `AGEN
 
 This keeps the agent's working set tight: when a project is explicit about its repos, that's the authoritative answer. The structured resource list at `.multica/project/resources.json` always carries the full set, so a skill that wants to inspect everything still can.
 
-The daemon mirrors this on the checkout side: when a task arrives with project-scoped `github_repo` URLs, those URLs are merged into the per-workspace allowlist *and* synced into the local repo cache before the agent spawns. So a project repo URL that isn't bound at the workspace level is still a valid argument to `multica repo checkout` — the daemon won't reject it as "not configured." The allowlist split is internal: workspace-bound URLs and task-scoped URLs are tracked separately, so a workspace-repos refresh doesn't accidentally revoke a project URL mid-run.
+The daemon mirrors this on the checkout side: when a task arrives with project-scoped `github_repo` URLs, those URLs are merged into the per-workspace allowlist *and* synced into the local repo cache before the agent spawns. So a project repo URL that isn't bound at the workspace level is still cloned for the task — the daemon won't reject it as "not configured." The allowlist split is internal: workspace-bound URLs and task-scoped URLs are tracked separately, so a workspace-repos refresh doesn't accidentally revoke a project URL mid-run.
 
 ## What's intentionally **not** in scope here
 
 - **Cross-project sharing.** Each resource lives on exactly one project today.
 - **Per-skill resource scoping.** All resources are visible to every skill on the agent's run; type-aware filtering is a follow-up.
-- **Caching / sync.** `github_repo` is just metadata — checkout still happens via `multica repo checkout` on demand. Cached document text for Notion / Google Docs will arrive with those types.
+- **Caching / sync.** `github_repo` is just metadata — the daemon clones it on demand per task. Cached document text for Notion / Google Docs will arrive with those types.
 
 These are deliberate omissions — the goal of the first cut is to validate the abstraction with the smallest set of moving parts.

@@ -148,7 +148,7 @@ function resolveContent(
         title: d.macIntel.title,
         sub: d.macIntel.sub,
         primary: {
-          href: "#cli",
+          href: "",
           label: d.macIntel.disabledCta,
           disabled: true,
         },

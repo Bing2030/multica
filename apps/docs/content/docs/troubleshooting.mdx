@@ -15,7 +15,7 @@ Look up issues by symptom. Each entry gives you **symptom / likely causes / how 
 
 1. **`MULTICA_SERVER_URL` points at the wrong address** — default is `ws://localhost:8080/ws`; self-host must change it to your server address
 2. **Network / firewall blocking** — the daemon and server aren't on the same network, or outbound traffic is blocked
-3. **Token expired or invalid** — you never ran `multica login`, or the PAT was revoked
+3. **Token expired or invalid** — the PAT in `~/.multica/config.json` is missing or was revoked
 4. **Server rejected registration** — the account you signed in with isn't in the target workspace (register returns 403)
 5. **DNS resolution failure** — the hostname doesn't resolve on the daemon machine
 
@@ -26,11 +26,12 @@ multica daemon logs --lines 100    # look for daemon-side errors
 echo $MULTICA_SERVER_URL          # confirm the address is set
 curl -i http://<server-host>:8080/health   # hit the server directly
 curl -i http://<server-host>:8080/readyz  # include DB + migration readiness
-cat ~/.multica/config.json        # verify api_token exists
-multica workspace list            # confirm you're a member of the target workspace
+cat ~/.multica/config.json        # verify the token field exists
 ```
 
-**How to fix**: address each cause above. The two most common fixes are **changing `MULTICA_SERVER_URL` and restarting the daemon** (`multica daemon restart`) and **signing in again** (`multica logout && multica login`).
+In the web UI, confirm you're a member of the target workspace by opening the workspace switcher.
+
+**How to fix**: address each cause above. The two most common fixes are **changing `MULTICA_SERVER_URL` (or the `server_url` field in `~/.multica/config.json`) and restarting the daemon** (`multica daemon restart`) and **generating a fresh PAT** — create a new one under **Settings → Personal Access Tokens** in the web app, paste it into `~/.multica/config.json`'s `token` field, then restart the daemon.
 
 ## Tasks stuck in `queued`
 
@@ -48,17 +49,17 @@ multica workspace list            # confirm you're a member of the target worksp
 
 ```bash
 multica daemon status --output json       # runtime list + last_seen_at
-multica agent list                         # check agent archived state
-multica issue show <issue-id>             # inspect task history
 ```
+
+In the web UI, open **Settings → Agents** to check each agent's archived state, and open the issue's **Activity** or **Execution log** tab to inspect task history.
 
 On the server side (self-host), grep for `"no_tasks"` / `"no_capacity"` to see the claim outcome.
 
 **How to fix**:
 
-- Concurrency full → wait for running tasks to finish, or `multica agent update <id> --max-concurrent-tasks 10` to raise the ceiling
+- Concurrency full → wait for running tasks to finish, or raise the agent's concurrency limit in **Settings → Agents** (edit the agent and increase `max_concurrent_tasks`)
 - Same-issue serialization → wait for the previous task to finish, or reassign to a different agent
-- Agent archived → `multica agent restore <id>`
+- Agent archived → restore it from **Settings → Agents** (open the archived agent and click **Restore**)
 - Runtime not registered → `multica daemon restart`, and the daemon will re-register
 
 ## WebSocket can't connect
@@ -253,7 +254,7 @@ Since MUL-2957 the migrate command runs an idempotent monthly-slice backfill (un
 
 ## Port conflicts
 
-**Symptom**: `multica server` or `multica daemon start` fails with `address already in use`.
+**Symptom**: `multica daemon start` fails with `address already in use`.
 
 **Likely causes**:
 

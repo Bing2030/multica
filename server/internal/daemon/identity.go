@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/multica-ai/multica/server/internal/cli"
 )
 
 // daemonIDFileName is the file that stores this machine's stable daemon
@@ -37,7 +36,7 @@ const daemonIDFileName = "daemon.id"
 // If the file exists but is corrupt (unparseable), it is regenerated so the
 // daemon can continue starting up instead of hard-failing.
 func EnsureDaemonID(profile string) (string, error) {
-	dir, err := cli.ProfileDir("")
+	dir, err := ProfileDir("")
 	if err != nil {
 		return "", err
 	}
@@ -82,7 +81,7 @@ func promoteProfileDaemonID(profile, targetPath string) (string, bool) {
 	if profile == "" {
 		return "", false
 	}
-	profileDir, err := cli.ProfileDir(profile)
+	profileDir, err := ProfileDir(profile)
 	if err != nil {
 		return "", false
 	}
@@ -194,7 +193,7 @@ func LegacyDaemonIDs(hostname, profile string) []string {
 // shouldn't block daemon startup. A missing profiles directory returns
 // (nil, nil) — that's the common case on a clean install.
 func LegacyDaemonUUIDs() ([]string, error) {
-	root, err := cli.ProfileDir("")
+	root, err := ProfileDir("")
 	if err != nil {
 		return nil, err
 	}

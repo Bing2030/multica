@@ -57,9 +57,8 @@ server + the Next.js web app in the foreground. Stop with **Ctrl-C**.
 - **First login:** enter your email. With no `RESEND_API_KEY`/SMTP set, the 6-digit code
   is printed in the **backend logs** (or set `MULTICA_DEV_VERIFICATION_CODE` to pin it).
 - **Run an agent locally** (optional — the dev server is the control plane): start the
-  daemon against this server with `make daemon` (first `make cli ARGS="setup"` /
-  `make cli ARGS="auth login"` to authenticate and register a runtime). Details in
-  `CLI_AND_DAEMON.md`.
+  daemon against this server with `make daemon` (create `~/.multica/config.json`
+  with a token first to authenticate and register a runtime).
 
 What `make dev` automates, exposed as separate targets:
 
@@ -857,7 +856,7 @@ the metrics layer); the PostHog shipping client does not.
 
 - `CLAUDE.md` — agent working conventions, the rules behind the decisions above.
 - `AGENTS.md`, `CONTRIBUTING.md` — contribution flow.
-- `CLI_AND_DAEMON.md`, `CLI_INSTALL.md`, `SELF_HOSTING*.md` — operator guides.
+- `SELF_HOSTING*.md` — operator guides.
 - `apps/docs/content/docs/developers/conventions.mdx` — naming/i18n/voice source of
   truth.
 - `server/cmd/server/main.go` + `router.go` — the authoritative boot + wiring.

@@ -134,9 +134,9 @@ export function createEnDict(allowSignup: boolean): LandingDict {
           : "Enter your email, verify with a code, and you\u2019re logged into your workspace \u2014 no setup wizard, no configuration forms.",
       },
       {
-        title: "Install the CLI & connect your machine",
+        title: "Connect your machine",
         description:
-          "Run multica setup \u2014 it walks you through OAuth, starts the daemon, and scans for the 6 supported coding tools (Claude Code, Codex, Cursor, Copilot, OpenCode, Pi). Whichever ones you already have installed get registered as runtimes automatically.",
+          "Download the desktop app, or place a config file at ~/.multica/config.json and run multica daemon start. The daemon scans for the 6 supported coding tools (Claude Code, Codex, Cursor, Copilot, OpenCode, Pi). Whichever ones you already have installed get registered as runtimes automatically.",
       },
       {
         title: "Create your first agent",
@@ -1745,7 +1745,7 @@ export function createEnDict(allowSignup: boolean): LandingDict {
         sub: "Apple Silicon required — Intel Macs not yet supported.",
         disabledCta: "Apple Silicon required",
         intelHint:
-          "On an Intel Mac? Use the CLI below — it runs the same daemon.",
+          "On an Intel Mac? Use the desktop app on a supported machine, or run the daemon on a Linux/ARM box.",
       },
       winX64: {
         title: "Multica for Windows",
@@ -1767,7 +1767,7 @@ export function createEnDict(allowSignup: boolean): LandingDict {
         title: "Choose your platform",
         sub: "All installers are listed below.",
       },
-      safariMacHint: "On an Intel Mac? Use the CLI below.",
+      safariMacHint: "On an Intel Mac? Run the daemon on a Linux/ARM box.",
       archFallbackHint: "Wrong architecture? See all formats below.",
     },
     allPlatforms: {
@@ -1786,15 +1786,6 @@ export function createEnDict(allowSignup: boolean): LandingDict {
       intelNote:
         "Apple Silicon only — Intel Macs not supported in this release.",
       unavailable: "Not available",
-    },
-    cli: {
-      title: "Prefer the CLI?",
-      sub: "For servers, remote dev boxes, and headless setups. Same daemon as Desktop, installed via terminal.",
-      installLabel: "Install",
-      startLabel: "Start daemon",
-      sshNote: "Already on a server? Same commands work over SSH.",
-      copyLabel: "Copy",
-      copiedLabel: "Copied",
     },
     cloud: {
       title: "Cloud runtime (waitlist)",
