@@ -65,32 +65,30 @@ func TestBusinessMetricsFailureReasonUsesCanonicalClassifier(t *testing.T) {
 	}
 }
 
-func TestBusinessMetricsLLMPricingAndUnpricedTokens(t *testing.T) {
+func TestBusinessMetricsLLMTokens(t *testing.T) {
 	m := NewBusinessMetrics()
 
+	// A known provider/model and an unknown one both record into llmTokens
+	// under the normalized provider + model-alias labels — cost is no longer
+	// tracked, so there is no priced/unpriced split.
 	m.RecordLLMUsage("chat", "cloud", "codex", "gpt-5.4", 1_000_000, 2_000_000, 3_000_000, 4_000_000)
 
-	if got := testutil.ToFloat64(m.llmTokens.WithLabelValues("openai", "gpt-5.4", "input", "cloud", "chat")); got != 1_000_000 {
-		t.Fatalf("priced input tokens = %v, want 1000000", got)
+	if got := testutil.ToFloat64(m.llmTokens.WithLabelValues("codex", "gpt-5.4", "input", "cloud", "chat")); got != 1_000_000 {
+		t.Fatalf("input tokens = %v, want 1000000", got)
 	}
-	if got := testutil.ToFloat64(m.llmTokens.WithLabelValues("openai", "gpt-5.4", "output", "cloud", "chat")); got != 2_000_000 {
-		t.Fatalf("priced output tokens = %v, want 2000000", got)
+	if got := testutil.ToFloat64(m.llmTokens.WithLabelValues("codex", "gpt-5.4", "output", "cloud", "chat")); got != 2_000_000 {
+		t.Fatalf("output tokens = %v, want 2000000", got)
 	}
-	if got := testutil.ToFloat64(m.llmCostUSD.WithLabelValues("openai", "gpt-5.4", "input", "cloud", "chat")); got != 2.5 {
-		t.Fatalf("priced input cost = %v, want 2.5", got)
-	}
-	if got := testutil.ToFloat64(m.llmCostUSD.WithLabelValues("openai", "gpt-5.4", "output", "cloud", "chat")); got != 30 {
-		t.Fatalf("priced output cost = %v, want 30", got)
-	}
-	if got := testutil.ToFloat64(m.llmRequests.WithLabelValues("openai", "gpt-5.4", "cloud")); got != 1 {
-		t.Fatalf("priced request counter = %v, want 1", got)
+	if got := testutil.ToFloat64(m.llmRequests.WithLabelValues("codex", "gpt-5.4", "cloud")); got != 1 {
+		t.Fatalf("request counter = %v, want 1", got)
 	}
 
+	// Unknown provider/model normalizes to "other" / sanitized alias.
 	m.RecordLLMUsage("issue", "local", "custom-provider", "Free Model!!", 7, 0, 0, 0)
-	if got := testutil.ToFloat64(m.llmUnpricedTokens.WithLabelValues("other", "free_model_", "input")); got != 7 {
+	if got := testutil.ToFloat64(m.llmTokens.WithLabelValues("other", "free_model_", "input", "local", "issue")); got != 7 {
 		t.Fatalf("unpriced input tokens = %v, want 7", got)
 	}
-	if got := testutil.ToFloat64(m.llmRequests.WithLabelValues("other", "unknown", "local")); got != 1 {
+	if got := testutil.ToFloat64(m.llmRequests.WithLabelValues("other", "free_model_", "local")); got != 1 {
 		t.Fatalf("unpriced request counter = %v, want 1", got)
 	}
 }

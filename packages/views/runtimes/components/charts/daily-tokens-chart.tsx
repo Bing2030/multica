@@ -34,8 +34,8 @@ export const tokenStackConfig = {
 
 export function DailyTokensChart({ data }: { data: DailyTokenData[] }) {
   const { t } = useT("runtimes");
-  // No internal empty-state — same convention as DailyCostChart: the parent
-  // decides what to render when there's nothing to show.
+  // No internal empty-state — the parent decides what to render when
+  // there's nothing to show.
   return (
     <ChartContainer config={tokenStackConfig} className="aspect-[3/1] w-full">
       <BarChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>

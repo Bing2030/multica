@@ -26,10 +26,8 @@ type BusinessMetrics struct {
 	taskInProgress   *prometheus.GaugeVec
 	taskIterations   *prometheus.HistogramVec
 
-	llmTokens         *prometheus.CounterVec
-	llmCostUSD        *prometheus.CounterVec
-	llmUnpricedTokens *prometheus.CounterVec
-	llmRequests       *prometheus.CounterVec
+	llmTokens   *prometheus.CounterVec
+	llmRequests *prometheus.CounterVec
 
 	taskQueuedExpired *prometheus.CounterVec
 	taskLeaseExpired  *prometheus.CounterVec
@@ -113,20 +111,8 @@ func NewBusinessMetrics() *BusinessMetrics {
 			Namespace: "multica",
 			Subsystem: "llm",
 			Name:      "tokens_total",
-			Help:      "Total priced LLM tokens by provider, model, token type, runtime mode, and task source.",
+			Help:      "Total LLM tokens by provider, model, token type, runtime mode, and task source.",
 		}, metricLabels("multica_llm_tokens_total")),
-		llmCostUSD: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "multica",
-			Subsystem: "llm",
-			Name:      "cost_usd_total",
-			Help:      "Total estimated priced LLM token cost in USD.",
-		}, metricLabels("multica_llm_cost_usd_total")),
-		llmUnpricedTokens: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "multica",
-			Subsystem: "llm",
-			Name:      "unpriced_tokens_total",
-			Help:      "Total LLM tokens for model aliases without a fixed TSR price.",
-		}, metricLabels("multica_llm_unpriced_tokens_total")),
 		llmRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "multica",
 			Subsystem: "llm",
@@ -165,8 +151,6 @@ func (m *BusinessMetrics) Collectors() []prometheus.Collector {
 		m.taskInProgress,
 		m.taskIterations,
 		m.llmTokens,
-		m.llmCostUSD,
-		m.llmUnpricedTokens,
 		m.llmRequests,
 		m.taskQueuedExpired,
 		m.taskLeaseExpired,
@@ -256,41 +240,20 @@ func (m *BusinessMetrics) RecordLLMUsage(source, runtimeMode, rawProvider, model
 	}
 	source = NormalizeTaskSource(source)
 	runtimeMode = NormalizeRuntimeMode(runtimeMode)
-	price, priced := PriceForModelAlias(modelAlias)
-	if !priced {
-		provider := NormalizeRuntimeProvider(rawProvider)
-		alias := NormalizeModelAlias(modelAlias)
-		m.recordUnpricedTokens(provider, alias, "input", inputTokens)
-		m.recordUnpricedTokens(provider, alias, "output", outputTokens)
-		m.recordUnpricedTokens(provider, alias, "cache_read", cacheReadTokens)
-		m.recordUnpricedTokens(provider, alias, "cache_write", cacheWriteTokens)
-		m.llmRequests.WithLabelValues(provider, "unknown", runtimeMode).Inc()
-		return
-	}
-
-	m.recordPricedTokens(price.Provider, price.Model, "input", runtimeMode, source, inputTokens, tokenCostUSD(inputTokens, price.InputPerM))
-	m.recordPricedTokens(price.Provider, price.Model, "output", runtimeMode, source, outputTokens, tokenCostUSD(outputTokens, price.OutputPerM))
-	m.recordPricedTokens(price.Provider, price.Model, "cache_read", runtimeMode, source, cacheReadTokens, tokenCostUSD(cacheReadTokens, price.CacheReadPerM))
-	m.recordPricedTokens(price.Provider, price.Model, "cache_write", runtimeMode, source, cacheWriteTokens, tokenCostUSD(cacheWriteTokens, price.CacheWritePerM))
-	m.llmRequests.WithLabelValues(price.Provider, price.Model, runtimeMode).Inc()
+	provider := NormalizeRuntimeProvider(rawProvider)
+	model := NormalizeModelAlias(modelAlias)
+	m.recordTokens(provider, model, "input", runtimeMode, source, inputTokens)
+	m.recordTokens(provider, model, "output", runtimeMode, source, outputTokens)
+	m.recordTokens(provider, model, "cache_read", runtimeMode, source, cacheReadTokens)
+	m.recordTokens(provider, model, "cache_write", runtimeMode, source, cacheWriteTokens)
+	m.llmRequests.WithLabelValues(provider, model, runtimeMode).Inc()
 }
 
-func (m *BusinessMetrics) recordPricedTokens(provider, model, tokenType, runtimeMode, source string, tokens int64, cost float64) {
+func (m *BusinessMetrics) recordTokens(provider, model, tokenType, runtimeMode, source string, tokens int64) {
 	if tokens <= 0 {
 		return
 	}
-	tokenType = NormalizeTokenType(tokenType)
-	m.llmTokens.WithLabelValues(provider, model, tokenType, runtimeMode, source).Add(float64(tokens))
-	if cost > 0 {
-		m.llmCostUSD.WithLabelValues(provider, model, tokenType, runtimeMode, source).Add(cost)
-	}
-}
-
-func (m *BusinessMetrics) recordUnpricedTokens(provider, modelAlias, tokenType string, tokens int64) {
-	if tokens <= 0 {
-		return
-	}
-	m.llmUnpricedTokens.WithLabelValues(provider, modelAlias, NormalizeTokenType(tokenType)).Add(float64(tokens))
+	m.llmTokens.WithLabelValues(provider, model, NormalizeTokenType(tokenType), runtimeMode, source).Add(float64(tokens))
 }
 
 func (m *BusinessMetrics) markTaskInProgress(taskID, source, runtimeMode string) {

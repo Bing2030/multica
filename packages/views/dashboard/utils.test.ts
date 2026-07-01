@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   aggregateAgentTokens,
-  aggregateDailyCost,
   aggregateWeeklyTasks,
   aggregateWeeklyTime,
   computeDailyTotals,
@@ -9,56 +8,8 @@ import {
   mergeAgentDashboardRows,
 } from "./utils";
 
-describe("aggregateDailyCost", () => {
-  it("collapses multiple rows per day into one stack and sorts by date asc", () => {
-    const result = aggregateDailyCost([
-      {
-        date: "2026-05-10",
-        model: "claude-sonnet-4-6",
-        input_tokens: 1_000_000,
-        output_tokens: 500_000,
-        cache_read_tokens: 0,
-        cache_write_tokens: 0,
-        task_count: 3,
-      },
-      {
-        date: "2026-05-09",
-        model: "claude-sonnet-4-6",
-        input_tokens: 1_000_000,
-        output_tokens: 0,
-        cache_read_tokens: 0,
-        cache_write_tokens: 0,
-        task_count: 1,
-      },
-    ]);
-
-    // Sort: oldest day first.
-    expect(result.map((r) => r.date)).toEqual(["2026-05-09", "2026-05-10"]);
-    // claude-sonnet-4-6: input $3/M, output $15/M.
-    // 2026-05-09 → 1M input × $3 = $3 input, $0 output, $0 cache.
-    expect(result[0]).toMatchObject({ input: 3, output: 0, cacheWrite: 0, total: 3 });
-    // 2026-05-10 → $3 input + (0.5M × $15) = $7.5 output. Total $10.5.
-    expect(result[1]).toMatchObject({ input: 3, output: 7.5, cacheWrite: 0, total: 10.5 });
-  });
-
-  it("treats unmapped models as zero-cost", () => {
-    const result = aggregateDailyCost([
-      {
-        date: "2026-05-10",
-        model: "made-up-model",
-        input_tokens: 999_999_999,
-        output_tokens: 0,
-        cache_read_tokens: 0,
-        cache_write_tokens: 0,
-        task_count: 0,
-      },
-    ]);
-    expect(result[0]?.total).toBe(0);
-  });
-});
-
 describe("aggregateAgentTokens", () => {
-  it("folds per-(agent, model) rows into per-agent totals and sorts by cost desc", () => {
+  it("folds per-(agent, model) rows into per-agent totals and sorts by tokens desc", () => {
     const rows = aggregateAgentTokens([
       {
         agent_id: "small-spender",
@@ -91,13 +42,13 @@ describe("aggregateAgentTokens", () => {
 
     expect(rows.map((r) => r.agentId)).toEqual(["big-spender", "small-spender"]);
     expect(rows[0]?.taskCount).toBe(5);
-    // big-spender across two models — verify cost > small-spender's.
-    expect(rows[0]!.cost).toBeGreaterThan(rows[1]!.cost);
+    // big-spender across two models — verify tokens > small-spender's.
+    expect(rows[0]!.tokens).toBeGreaterThan(rows[1]!.tokens);
   });
 });
 
 describe("computeDailyTotals", () => {
-  it("sums tokens across rows and adds estimated cost", () => {
+  it("sums tokens across rows", () => {
     const totals = computeDailyTotals([
       {
         date: "2026-05-10",
@@ -119,7 +70,6 @@ describe("computeDailyTotals", () => {
       },
     ]);
     expect(totals.input).toBe(3_000_000);
-    expect(totals.cost).toBe(9); // 3M × $3/M
     expect(totals.taskCount).toBe(5);
   });
 });
@@ -134,7 +84,6 @@ describe("mergeAgentDashboardRows", () => {
       {
         agentId: "agent-a",
         tokens: 3_000_000,
-        cost: 12,
         taskCount: 2, // overcounted because (model-1: 1) + (model-2: 1)
       },
     ];
@@ -157,7 +106,7 @@ describe("mergeAgentDashboardRows", () => {
     // rollup is silent on this agent. Keep the token-side estimate
     // instead of dropping the agent from the table entirely.
     const merged = mergeAgentDashboardRows(
-      [{ agentId: "agent-b", tokens: 100, cost: 0.5, taskCount: 1 }],
+      [{ agentId: "agent-b", tokens: 100, taskCount: 1 }],
       [],
     );
     expect(merged[0]!.taskCount).toBe(1);
@@ -174,22 +123,21 @@ describe("mergeAgentDashboardRows", () => {
     );
     expect(merged).toHaveLength(1);
     expect(merged[0]!.tokens).toBe(0);
-    expect(merged[0]!.cost).toBe(0);
     expect(merged[0]!.taskCount).toBe(1);
   });
 
-  it("sorts by cost desc with run-time as a tiebreaker", () => {
+  it("sorts by tokens desc with run-time as a tiebreaker", () => {
     const merged = mergeAgentDashboardRows(
       [
-        { agentId: "low", tokens: 100, cost: 1, taskCount: 1 },
-        { agentId: "high", tokens: 100, cost: 9, taskCount: 1 },
-        { agentId: "zero-cost-long", tokens: 0, cost: 0, taskCount: 0 },
+        { agentId: "low", tokens: 100, taskCount: 1 },
+        { agentId: "high", tokens: 900, taskCount: 1 },
+        { agentId: "zero-tokens-long", tokens: 0, taskCount: 0 },
       ],
       [
-        { agent_id: "zero-cost-long", total_seconds: 1000, task_count: 5, failed_count: 0 },
+        { agent_id: "zero-tokens-long", total_seconds: 1000, task_count: 5, failed_count: 0 },
       ],
     );
-    expect(merged.map((r) => r.agentId)).toEqual(["high", "low", "zero-cost-long"]);
+    expect(merged.map((r) => r.agentId)).toEqual(["high", "low", "zero-tokens-long"]);
   });
 });
 
