@@ -799,17 +799,17 @@ func (d *Daemon) deregisterRuntimes() {
 
 // resolveAuth loads the auth token from the CLI config for the active profile.
 func (d *Daemon) resolveAuth() error {
-	cfg, err := cli.LoadCLIConfigForProfile(d.cfg.Profile)
+	cfg, err := LoadCLIConfigForProfile(d.cfg.Profile)
 	if err != nil {
 		return fmt.Errorf("load CLI config: %w", err)
 	}
 	if cfg.Token == "" {
-		loginHint := "'multica login'"
+		hint := "create a personal access token in Settings → Tokens and place it in ~/.multica/config.json"
 		if d.cfg.Profile != "" {
-			loginHint = fmt.Sprintf("'multica login --profile %s'", d.cfg.Profile)
+			hint = fmt.Sprintf("create a personal access token in Settings → Tokens and place it in ~/.multica/profiles/%s/config.json", d.cfg.Profile)
 		}
-		d.logger.Warn("not authenticated — run " + loginHint + " to authenticate, then restart the daemon")
-		return fmt.Errorf("not authenticated: run %s first", loginHint)
+		d.logger.Warn("not authenticated — " + hint + ", then restart the daemon")
+		return fmt.Errorf("not authenticated: %s", hint)
 	}
 	d.client.SetToken(cfg.Token)
 	d.logger.Info("authenticated")

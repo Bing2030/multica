@@ -139,32 +139,42 @@ Open [http://localhost:3000](http://localhost:3000):
 - Do not use `888888` unless you explicitly set `MULTICA_DEV_VERIFICATION_CODE=888888` on a non-production private instance
 - Log in and create your first workspace
 
-## 5. Point the CLI at your own server
+## 5. Point the daemon at your own server
 
-The CLI install is the same as in [Cloud quickstart → 2. Install the CLI](/cloud-quickstart#2-install-the-multica-cli) — Homebrew / script / PowerShell, pick one.
+The daemon reads `~/.multica/config.json` at start. You create this file by hand — there is no `multica setup` to do it for you. The exact field values depend on where the daemon runs relative to the server.
 
 ### 5a. Same machine
 
-If the CLI and the server run on the same host, the defaults already work:
+If the daemon and the server run on the same host, the loopback defaults work. Create `~/.multica/config.json`:
 
-```bash
-multica setup self-host
+```json
+{
+  "server_url": "ws://localhost:8080/ws",
+  "app_url": "http://localhost:3000",
+  "token": "mul_..."
+}
 ```
 
-That points the CLI at `http://localhost:8080` (backend) and `http://localhost:3000` (frontend), takes you through browser login, stores the PAT locally, and **starts the daemon automatically**.
+Create the PAT (`mul_…`) in the web app under **Settings → Personal Access Tokens → New token**. Then start the daemon:
+
+```bash
+multica daemon start
+```
 
 ### 5b. Cross-machine: front with a reverse proxy
 
-Because the compose stack only listens on `127.0.0.1`, a daemon on a different machine cannot reach `http://<server-ip>:8080` directly — and you do not want it to, since server secrets would otherwise be reachable from the open internet. Put a reverse proxy on the server that terminates TLS and forwards to `127.0.0.1:8080` (backend) and `127.0.0.1:3000` (frontend), then point the CLI at the public HTTPS URL:
+Because the compose stack only listens on `127.0.0.1`, a daemon on a different machine cannot reach `http://<server-ip>:8080` directly — and you do not want it to, since server secrets would otherwise be reachable from the open internet. Put a reverse proxy on the server that terminates TLS and forwards to `127.0.0.1:8080` (backend) and `127.0.0.1:3000` (frontend), then point `~/.multica/config.json` at the public HTTPS URL:
 
-```bash
-multica setup self-host \
-  --server-url https://<your-domain> \
-  --app-url https://<your-domain>
+```json
+{
+  "server_url": "wss://multica.example.com/ws",
+  "app_url": "https://multica.example.com",
+  "token": "mul_..."
+}
 ```
 
 <Callout type="info">
-Prefer environment variables over flags? `setup self-host` reads `MULTICA_SERVER_URL` and `MULTICA_APP_URL` when the matching flag is omitted — a flag still takes precedence over the env var. `MULTICA_SERVER_URL` also accepts the `ws://…/ws` daemon form from [Environment variables](/environment-variables) and normalizes it to the HTTP base.
+Prefer environment variables over editing the file? The daemon also reads `MULTICA_SERVER_URL` and `MULTICA_APP_URL` from the environment; a value in `config.json` takes precedence, but the env vars are handy for one-off overrides. `MULTICA_SERVER_URL` also accepts the `ws://…/ws` daemon form from [Environment variables](/environment-variables) and normalizes it to the HTTP base.
 </Callout>
 
 A minimal Caddyfile that fronts both the frontend and the backend (with WebSocket support, which the daemon and the web app both need) on a single hostname:
@@ -251,13 +261,17 @@ curl -H "Host: api.multica.dev.lan" http://<ingress-ip>/healthz
 # {"status":"ok","checks":{"db":"ok","migrations":"ok"}}
 ```
 
-Then open `http://multica.dev.lan` and continue at [Step 4 — First login](#4-first-login--create-a-workspace) above. Point the CLI at your Ingress hostnames:
+Then open `http://multica.dev.lan` and continue at [Step 4 — First login](#4-first-login--create-a-workspace) above. Point the daemon at your Ingress hostnames by creating `~/.multica/config.json`:
 
-```bash
-multica setup self-host \
-  --server-url http://api.multica.dev.lan \
-  --app-url http://multica.dev.lan
+```json
+{
+  "server_url": "ws://api.multica.dev.lan/ws",
+  "app_url": "http://multica.dev.lan",
+  "token": "mul_..."
+}
 ```
+
+Then start the daemon with `multica daemon start`.
 
 To pull the latest images without changing the chart, `kubectl -n multica rollout restart deploy/multica-backend deploy/multica-frontend`. To pin a specific Multica release, set `images.backend.tag` / `images.frontend.tag` in your values file and `helm upgrade`. `helm -n multica uninstall multica` removes the workloads but keeps the PVCs and Secret; `kubectl delete namespace multica` wipes everything.
 

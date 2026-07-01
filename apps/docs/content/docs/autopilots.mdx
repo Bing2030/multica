@@ -39,14 +39,7 @@ The Multica server scans for due triggers every **30 seconds** — **the actual 
 
 ## Trigger once manually
 
-To avoid waiting for cron while debugging an autopilot, trigger it manually:
-
-- UI: click "Run now" on the autopilot detail page
-- CLI:
-
-```bash
-multica autopilot trigger <autopilot-id>
-```
+To avoid waiting for cron while debugging an autopilot, trigger it manually — click **Run now** on the autopilot detail page.
 
 A manual trigger goes through the exact same execution flow as a `schedule` trigger — only the `source` field on the run record is marked `manual`.
 
@@ -225,9 +218,7 @@ The generated URL **is** the credential. Anyone with it can fire the
 autopilot. Treat it like a token:
 
 - **Don't paste it into public issue threads, screenshots, or chat history.**
-- **Rotate it if it leaks** — click "Rotate URL" on the trigger row, or run
-  `multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>`. The
-  old URL stops working immediately.
+- **Rotate it if it leaks** — click **Rotate URL** on the trigger row in the autopilot detail page. The old URL stops working immediately.
 - For sources that require strong source authentication, wait for
   per-trigger HMAC signature verification; this v1 URL is bearer-only.
 - Workspace members who can view the autopilot can read its webhook URLs

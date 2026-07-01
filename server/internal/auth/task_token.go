@@ -34,6 +34,15 @@ func GenerateAgentTaskToken() (string, error) {
 	return "mat_" + hex.EncodeToString(b), nil
 }
 
+// GeneratePATToken creates a new personal access token: "mul_" + 40 random hex chars.
+func GeneratePATToken() (string, error) {
+	b := make([]byte, 20) // 20 bytes = 40 hex chars
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate PAT token: %w", err)
+	}
+	return "mul_" + hex.EncodeToString(b), nil
+}
+
 // HashToken returns the hex-encoded SHA-256 hash of a token string.
 func HashToken(token string) string {
 	h := sha256.Sum256([]byte(token))

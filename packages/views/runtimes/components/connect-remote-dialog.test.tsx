@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@multica/core/i18n/react";
 import { configStore } from "@multica/core/config";
@@ -34,6 +34,7 @@ vi.mock("../../navigation", () => ({
 function resetConfigStore() {
   configStore.setState({
     cdnDomain: "",
+    cdnSigned: false,
     allowSignup: true,
     googleClientId: "",
     daemonServerUrl: "",
@@ -66,17 +67,11 @@ const ligatureClasses = [
 ];
 
 describe("ConnectRemoteDialog", () => {
-  it("uses cloud setup commands by default", () => {
+  it("shows cloud server URL by default", () => {
     const { baseElement } = renderDialog();
 
-    expect(baseElement).toHaveTextContent("multica setup");
-    expect(baseElement).not.toHaveTextContent("multica setup self-host");
-    expect(baseElement).toHaveTextContent(
-      "multica config set server_url https://api.multica.ai",
-    );
-    expect(baseElement).toHaveTextContent(
-      "multica config set app_url https://multica.ai",
-    );
+    expect(baseElement).toHaveTextContent("https://api.multica.ai");
+    expect(baseElement).toHaveTextContent("https://multica.ai");
   });
 
   it("uses self-host daemon URLs from runtime config", () => {
@@ -85,34 +80,49 @@ describe("ConnectRemoteDialog", () => {
       daemonAppUrl: "https://app.example.com/",
     });
 
-    expect(baseElement).toHaveTextContent(
-      "multica setup self-host --server-url https://api.example.com --app-url https://app.example.com",
-    );
-    expect(baseElement).toHaveTextContent(
-      "multica config set server_url https://api.example.com",
-    );
-    expect(baseElement).toHaveTextContent(
-      "multica config set app_url https://app.example.com",
-    );
+    expect(baseElement).toHaveTextContent("https://api.example.com");
+    expect(baseElement).toHaveTextContent("https://app.example.com");
   });
 
-  it("disables font ligatures in setup command code", () => {
+  it("shows multica daemon start as the only shell command", () => {
     const { baseElement } = renderDialog();
 
-    const setupCode = Array.from(baseElement.querySelectorAll("code")).find((node) =>
-      node.textContent?.includes("multica setup"),
-    );
-
-    expect(setupCode).toHaveClass(...ligatureClasses);
+    expect(baseElement).toHaveTextContent("multica daemon start");
+    // Removed commands must not appear
+    expect(baseElement).not.toHaveTextContent("multica setup");
+    expect(baseElement).not.toHaveTextContent("multica login");
+    expect(baseElement).not.toHaveTextContent("multica config set");
+    expect(baseElement).not.toHaveTextContent("install.sh");
   });
 
-  it("disables font ligatures in fallback token command code", () => {
+  it("generates config JSON with entered token", () => {
     const { baseElement } = renderDialog();
 
-    const tokenCode = Array.from(baseElement.querySelectorAll("code")).find((node) =>
-      node.textContent?.includes("multica login --token <YOUR_TOKEN>"),
+    const tokenInput = screen.getByPlaceholderText("mul_...");
+    fireEvent.change(tokenInput, { target: { value: "mul_test_token" } });
+
+    expect(baseElement).toHaveTextContent("mul_test_token");
+    expect(baseElement).toHaveTextContent("server_url");
+    expect(baseElement).toHaveTextContent("app_url");
+  });
+
+  it("disables font ligatures in daemon start command code", () => {
+    const { baseElement } = renderDialog();
+
+    const startCode = Array.from(baseElement.querySelectorAll("code")).find(
+      (node) => node.textContent?.includes("multica daemon start"),
     );
 
-    expect(tokenCode).toHaveClass(...ligatureClasses);
+    expect(startCode).toHaveClass(...ligatureClasses);
+  });
+
+  it("disables font ligatures in config JSON code", () => {
+    const { baseElement } = renderDialog();
+
+    const configCode = Array.from(baseElement.querySelectorAll("code")).find(
+      (node) => node.textContent?.includes("server_url"),
+    );
+
+    expect(configCode).toHaveClass(...ligatureClasses);
   });
 });

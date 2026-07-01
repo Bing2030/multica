@@ -10,7 +10,6 @@ import (
 
 // Command group IDs used across the CLI.
 const (
-	groupCore       = "core"
 	groupRuntime    = "runtime"
 	groupAdditional = "additional"
 )
@@ -42,7 +41,6 @@ func initHelp(root *cobra.Command) {
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddGroup(
-		&cobra.Group{ID: groupCore, Title: "CORE COMMANDS"},
 		&cobra.Group{ID: groupRuntime, Title: "RUNTIME COMMANDS"},
 		&cobra.Group{ID: groupAdditional, Title: "ADDITIONAL COMMANDS"},
 	)
@@ -107,7 +105,7 @@ func init() {
 	})
 }
 
-var rootHelpTemplate = `Work seamlessly with Multica from the command line.
+var rootHelpTemplate = `Run and control the local Multica agent runtime daemon.
 
 USAGE
   multica <command> <subcommand> [flags]
@@ -118,10 +116,9 @@ USAGE
 FLAGS
 {{.LocalFlags.FlagUsages}}
 EXAMPLES
-  $ multica login
-  $ multica issue list --output json
   $ multica daemon start
-  $ multica agent list --output json
+  $ multica daemon status
+  $ multica daemon logs -f
 
 ENVIRONMENT VARIABLES
   MULTICA_SERVER_URL    Override the default server URL

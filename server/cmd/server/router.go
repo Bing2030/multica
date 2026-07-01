@@ -620,9 +620,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/api/invitations/{id}/accept", h.AcceptInvitation)
 		r.Post("/api/invitations/{id}/decline", h.DeclineInvitation)
 
-		// THROWAWAY POC: /api/tokens (personal access tokens) removed —
-		// DevBypass is the sole identity path and the desktop daemon runs
-		// with no token. NEVER MERGE.
+		// Personal access tokens — created/revoked from Settings → Tokens
+		// in the web UI. The daemon reads the token from ~/.multica/config.json.
+		r.Get("/api/tokens", h.ListPersonalAccessTokens)
+		r.Post("/api/tokens", h.CreatePersonalAccessToken)
+		r.Delete("/api/tokens/{id}", h.RevokePersonalAccessToken)
+		r.Post("/api/tokens/current/renew", h.RenewCurrentPersonalAccessToken)
 
 		// Cloud Billing proxy. Same upstream service / port as
 		// cloud-runtime — multica-cloud's Fleet and Billing share

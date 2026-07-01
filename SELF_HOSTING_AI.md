@@ -11,19 +11,32 @@ This document is designed for AI agents to execute. Follow these steps exactly t
 ## Install
 
 ```bash
-# Install CLI + provision self-host server
-curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash -s -- --with-server
+# Start the self-host server (backend, frontend, database)
+git clone https://github.com/multica-ai/multica.git
+cd multica
+make selfhost
 
-# Configure CLI for localhost, authenticate, and start daemon
-multica setup self-host
+# Install the CLI
+brew install multica-ai/tap/multica
+
+# Create the daemon config (~/.multica/config.json) and start it
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "http://localhost:8080",
+  "app_url": "http://localhost:3000",
+  "token": "<your-personal-access-token>"
+}
+EOF
+multica daemon start
 ```
 
-Wait for the server output `✓ Multica server is running and CLI is ready!` before running `multica setup self-host`.
+Wait for `make selfhost` to report the server is ready before starting the daemon. Generate a personal access token in **Settings → Account** in the web UI at http://localhost:3000 after logging in.
 
 **Expected result:**
 - Frontend at http://localhost:3000
 - Backend at http://localhost:8080
-- `multica` CLI installed and configured for localhost
+- `multica` CLI installed and daemon connected to localhost
 
 ## Alternative: Manual Setup
 
@@ -32,14 +45,19 @@ git clone https://github.com/multica-ai/multica.git
 cd multica
 make selfhost
 brew install multica-ai/tap/multica
-multica setup self-host
+
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "http://localhost:8080",
+  "app_url": "http://localhost:3000",
+  "token": "<your-personal-access-token>"
+}
+EOF
+multica daemon start
 ```
 
-The `multica setup self-host` command will:
-1. Configure CLI to connect to localhost:8080 / localhost:3000
-2. Open a browser for login — use the emailed code, or the generated code printed in backend logs when Resend is unset
-3. Discover workspaces automatically
-4. Start the daemon in the background
+The daemon reads `~/.multica/config.json` for its server URL, app URL, and auth token. Log in at http://localhost:3000 (use the emailed code, or the generated code printed in backend logs when Resend is unset) and generate a personal access token in **Settings → Account**.
 
 ## Verification
 
@@ -66,7 +84,7 @@ If the default ports (8080/3000) are in use:
 
 1. Edit `.env` and change `PORT` and `FRONTEND_PORT`
 2. Run `make selfhost`
-3. Run `multica setup self-host --port <PORT> --frontend-port <FRONTEND_PORT>`
+3. Set `server_url` and `app_url` in `~/.multica/config.json` to match your custom ports, then `multica daemon start`
 
 ## Troubleshooting
 

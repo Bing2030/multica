@@ -1,4 +1,4 @@
-.PHONY: help makehelp dev server daemon cli multica build test migrate-up migrate-down sqlc seed clean setup start stop check worktree-env setup-main start-main stop-main check-main setup-worktree start-worktree stop-worktree check-worktree db-up db-down db-reset selfhost selfhost-build selfhost-stop
+.PHONY: help makehelp dev server daemon multica build test migrate-up migrate-down sqlc seed clean setup start stop check worktree-env setup-main start-main stop-main check-main setup-worktree start-worktree stop-worktree check-worktree db-up db-down db-reset selfhost selfhost-build selfhost-stop
 
 MAIN_ENV_FILE ?= .env
 WORKTREE_ENV_FILE ?= .env.worktree
@@ -99,9 +99,9 @@ selfhost: ## Create .env if needed, then pull and start the official self-hosted
 		echo "Log in: configure RESEND_API_KEY in .env for email codes,"; \
 		echo "        or read the generated code from backend logs when Resend is unset."; \
 		echo ""; \
-		echo "Next — install the CLI and connect your machine:"; \
-		echo "  brew install multica-ai/tap/multica"; \
-		echo "  multica setup self-host"; \
+		echo "Next — connect your machine via the desktop app,"; \
+		echo "        or place a token at ~/.multica/config.json and run:"; \
+		echo "  multica daemon start"; \
 	else \
 		echo ""; \
 		echo "Services are still starting. Check logs:"; \
@@ -146,9 +146,9 @@ selfhost-build: ## Build backend/web from the current checkout and start the sel
 		echo "Built images locally via docker-compose.selfhost.build.yml."; \
 		echo "Local tags: multica-backend:dev and multica-web:dev."; \
 		echo ""; \
-		echo "Next — install the CLI and connect your machine:"; \
-		echo "  brew install multica-ai/tap/multica"; \
-		echo "  multica setup self-host"; \
+		echo "Next — connect your machine via the desktop app,"; \
+		echo "        or place a token at ~/.multica/config.json and run:"; \
+		echo "  multica daemon start"; \
 	else \
 		echo ""; \
 		echo "Services are still starting. Check logs:"; \
@@ -277,10 +277,7 @@ server: ## Run only the Go server for the current checkout
 daemon: ## Restart the local agent daemon using the CLI's stored auth/session
 	@$(MAKE) multica MULTICA_ARGS="daemon restart --profile local"
 
-cli: ## Run the multica CLI with ARGS or MULTICA_ARGS from source
-	@$(MAKE) multica MULTICA_ARGS="$(MULTICA_ARGS)"
-
-multica: ## Run the multica CLI entrypoint directly from the Go source tree
+multica: ## Run the multica daemon entrypoint directly from the Go source tree
 	cd server && go run ./cmd/multica $(MULTICA_ARGS)
 
 # VERSION mirrors `git describe --tags --dirty`: a bare semver when HEAD is a
@@ -295,7 +292,7 @@ VERSION ?= $(shell git describe --tags --dirty 2>/dev/null || echo v0.0.0-0-g$$(
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-build: ## Build the server, CLI, and migrate binaries into server/bin
+build: ## Build the server, daemon, and migrate binaries into server/bin
 	cd server && go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT)" -o bin/server ./cmd/server
 	cd server && go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)" -o bin/multica ./cmd/multica
 	cd server && go build -o bin/migrate ./cmd/migrate

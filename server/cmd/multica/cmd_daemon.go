@@ -119,10 +119,16 @@ func init() {
 	daemonCmd.AddCommand(daemonDiskUsageCmd)
 }
 
+// resolveProfile returns the --profile flag value (empty string means default profile).
+func resolveProfile(cmd *cobra.Command) string {
+	val, _ := cmd.Flags().GetString("profile")
+	return val
+}
+
 // daemonDirForProfile returns the state directory for the given profile.
 // Empty profile → ~/.multica/, named profile → ~/.multica/profiles/<name>/.
 func daemonDirForProfile(profile string) string {
-	dir, err := cli.ProfileDir(profile)
+	dir, err := daemon.ProfileDir(profile)
 	if err != nil {
 		return ""
 	}
@@ -334,7 +340,7 @@ func runDaemonForeground(cmd *cobra.Command) error {
 
 	serverURL := cli.FlagOrEnv(cmd, "server-url", "MULTICA_SERVER_URL", "")
 	if serverURL == "" {
-		if c, err := cli.LoadCLIConfigForProfile(profile); err == nil && c.ServerURL != "" {
+		if c, err := daemon.LoadCLIConfigForProfile(profile); err == nil && c.ServerURL != "" {
 			serverURL = c.ServerURL
 		}
 	}

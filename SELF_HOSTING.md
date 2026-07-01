@@ -14,21 +14,34 @@ Each user who runs AI agents locally also installs the **`multica` CLI** and run
 
 ## Quick Install (Recommended)
 
-Two commands to set up everything — server, CLI, and configuration:
+Clone the repo, start the self-host stack, then install the CLI and configure the daemon:
 
 ```bash
-# 1. Install CLI + provision the self-host server
-curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash -s -- --with-server
+# 1. Start the self-host server (backend, frontend, database)
+git clone https://github.com/multica-ai/multica.git
+cd multica
+make selfhost
 
-# 2. Configure CLI, authenticate, and start the daemon
-multica setup self-host
+# 2. Install the CLI
+brew install multica-ai/tap/multica
+
+# 3. Create the daemon config and start it
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "http://localhost:8080",
+  "app_url": "http://localhost:3000",
+  "token": "<your-personal-access-token>"
+}
+EOF
+multica daemon start
 ```
 
-This installs the `multica` CLI, checks out the latest self-host assets, pulls the official Multica images from GHCR, and configures everything for localhost.
+`make selfhost` creates `.env` from the example, generates a random `JWT_SECRET`, and pulls the official Multica images from GHCR.
 
-Open http://localhost:3000. To log in, configure `RESEND_API_KEY` in `.env` for email-based codes (recommended), or leave Resend unset and copy the generated code from the backend logs. See [Step 2 — Log In](#step-2--log-in) for details.
+Open http://localhost:3000. To log in, configure `RESEND_API_KEY` in `.env` for email-based codes (recommended), or leave Resend unset and copy the generated code from the backend logs. See [Step 2 — Log In](#step-2--log-in) for details. After logging in, generate a personal access token in **Settings → Account** and paste it into `config.json` before starting the daemon.
 
-> **Prerequisites:** Docker and Docker Compose must be installed. The script checks for this and provides install links if missing.
+> **Prerequisites:** Docker and Docker Compose must be installed.
 >
 > **CLI only?** If the self-host server is already running and you only need the CLI on a macOS/Linux machine, install it with Homebrew:
 >
@@ -97,22 +110,39 @@ You also need at least one AI agent CLI installed:
 - [Pi](https://pi.dev/) (`pi` on PATH)
 - [Cursor Agent](https://cursor.com/) (`cursor-agent` on PATH)
 
-### b) One-command setup
+### b) Configure the daemon and start it
+
+The daemon reads its configuration from `~/.multica/config.json`. Create this file manually with your server URLs and a personal access token (generate one in **Settings → Account** in the web UI after logging in):
 
 ```bash
-multica setup self-host
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "http://localhost:8080",
+  "app_url": "http://localhost:3000",
+  "token": "<your-personal-access-token>"
+}
+EOF
 ```
 
-This automatically:
-1. Configures the CLI to connect to `localhost` (ports 8080/3000)
-2. Opens your browser for authentication
-3. Discovers your workspaces
-4. Starts the daemon in the background
-
-For on-premise deployments with custom domains:
+Then start the daemon:
 
 ```bash
-multica setup self-host --server-url https://api.example.com --app-url https://app.example.com
+multica daemon start
+```
+
+For on-premise deployments with custom domains, point `server_url` and `app_url` at your hosted instance:
+
+```bash
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "https://api.example.com",
+  "app_url": "https://app.example.com",
+  "token": "<your-personal-access-token>"
+}
+EOF
+multica daemon start
 ```
 
 To verify the daemon is running:
@@ -120,8 +150,6 @@ To verify the daemon is running:
 ```bash
 multica daemon status
 ```
-
-> **Alternative:** If you prefer manual steps, see [Manual CLI Configuration](#manual-cli-configuration) below.
 
 ### Step 4 — Verify & Start Using
 
@@ -268,12 +296,18 @@ The chart defaults to `APP_ENV=production` (set in `values.yaml` under `backend.
 
 ### Step 6 — Install CLI & Start Daemon
 
-The daemon runs on your local machine, not in the cluster. Install the CLI and an AI agent as in [Step 3](#step-3--install-cli--start-daemon) above, then point the CLI at your Ingress hostnames:
+The daemon runs on your local machine, not in the cluster. Install the CLI and an AI agent as in [Step 3](#step-3--install-cli--start-daemon) above, then point the daemon at your Ingress hostnames by creating `~/.multica/config.json`:
 
 ```bash
-multica setup self-host \
-  --server-url http://api.multica.dev.lan \
-  --app-url http://multica.dev.lan
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "http://api.multica.dev.lan",
+  "app_url": "http://multica.dev.lan",
+  "token": "<your-personal-access-token>"
+}
+EOF
+multica daemon start
 ```
 
 Make sure the machine running the daemon has the same `/etc/hosts` (or DNS) entries from [Step 1](#step-1--point-hostnames-at-the-cluster).
@@ -383,14 +417,6 @@ External cron / systemd timer / Kubernetes `CronJob` setups that call `SELECT ro
 
 ## Stopping Services
 
-If you installed via the install script:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash -s -- --stop
-```
-
-If you cloned the repo manually:
-
 ```bash
 # Stop the Docker Compose services (backend, frontend, database)
 make selfhost-stop
@@ -401,13 +427,11 @@ multica daemon stop
 
 ## Switching to Multica Cloud
 
-If you've been self-hosting and want to switch your CLI to [Multica Cloud](https://multica.ai):
+If you've been self-hosting and want to switch your daemon to [Multica Cloud](https://multica.ai), edit `~/.multica/config.json` to point at the Multica Cloud server URL, app URL, and a cloud personal access token, then restart the daemon:
 
 ```bash
-multica setup
+multica daemon restart
 ```
-
-This reconfigures the CLI for multica.ai, re-authenticates, and restarts the daemon. You will be prompted before overwriting the existing configuration.
 
 > Your local Docker services are unaffected. Stop them separately if you no longer need them.
 
@@ -450,15 +474,17 @@ docker compose -f docker-compose.selfhost.yml up -d
 
 ## Manual CLI Configuration
 
-If you prefer configuring the CLI step by step instead of `multica setup`:
+The daemon reads its configuration from `~/.multica/config.json`. Create this file manually with `server_url`, `app_url`, and `token` fields, then start the daemon:
 
 ```bash
-# Point CLI to your local server
-multica config set server_url http://localhost:8080
-multica config set app_url http://localhost:3000
-
-# Login (opens browser)
-multica login
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "http://localhost:8080",
+  "app_url": "http://localhost:3000",
+  "token": "<your-personal-access-token>"
+}
+EOF
 
 # Start the daemon
 multica daemon start
@@ -467,11 +493,18 @@ multica daemon start
 For production deployments with TLS:
 
 ```bash
-multica config set app_url https://app.example.com
-multica config set server_url https://api.example.com
-multica login
+mkdir -p ~/.multica
+cat > ~/.multica/config.json <<EOF
+{
+  "server_url": "https://api.example.com",
+  "app_url": "https://app.example.com",
+  "token": "<your-personal-access-token>"
+}
+EOF
 multica daemon start
 ```
+
+Generate a personal access token from the web UI under **Settings → Account** after logging in.
 
 ## Advanced Configuration
 
